@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokémon Comarca de Cariñena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    body {
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #2d1b4e 0%, #4a2040 50%, #1a3a2a 100%);
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    canvas {
+      max-width: 100%;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script src="p5.min.js"></script>
+  <script>
+    // Prevenir scroll con flechas
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
