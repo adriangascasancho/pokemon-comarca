@@ -1,1591 +1,1582 @@
-<!DOCTYPE html>\
-<html lang="es">\
-<head>\
-  <meta charset="UTF-8" />\
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />\
-  <title>Pok\'e9mon Comarca de Cari\'f1ena</title>\
-  <style>\
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');\
-    * \{ margin: 0; padding: 0; box-sizing: border-box; \}\
-\
-    body\{\
-      background: radial-gradient(circle at top, #4d4d4d, #2a2a2a);\
-      display:flex; justify-content:center; align-items:center;\
-      min-height:100vh;\
-      font-family:'Press Start 2P', monospace;\
-    \}\
-\
-    #gba-frame\{\
-      padding:20px;\
-      background: linear-gradient(145deg, #5b5b5b, #1f1f1f);\
-      border-radius:24px;\
-      box-shadow:0 20px 40px rgba(0,0,0,.5), inset 0 0 0 4px #2f2f2f;\
-    \}\
-\
-    #game-container\{\
-      position:relative;\
-      background:#101018;\
-      border-radius:12px;\
-      overflow:hidden;\
-      border:6px solid #1c1c1c;\
-      box-shadow: inset 0 0 0 3px #3a3a3a;\
-    \}\
-\
-    #game-canvas\{\
-      display:block;\
-      image-rendering: pixelated;\
-      image-rendering: crisp-edges;\
-    \}\
-\
-    #ui-layer\{\
-      position:absolute;\
-      top:0; left:0;\
-      width:100%; height:100%;\
-      pointer-events:none;\
-    \}\
-    #ui-layer > * \{ pointer-events:auto; \}\
-\
-    .textbox, .menu-box, .battle-ui\{\
-      background:#f8f8f8;\
-      border:4px solid #1f2a44;\
-      border-radius:6px;\
-      box-shadow: inset 0 0 0 2px #98b0c8, inset -4px -4px 0 #d8d8d8;\
-    \}\
-\
-    .textbox\{\
-      position:absolute;\
-      bottom:8px; left:8px; right:8px;\
-      padding:14px 16px;\
-      line-height:1.8;\
-    \}\
-\
-    .battle-ui\{\
-      position:absolute;\
-      bottom:0; left:0; right:0;\
-      height:112px;\
-      border-top:4px solid #1f2a44;\
-      box-shadow: inset 0 0 0 2px #98b0c8;\
-      padding:10px;\
-    \}\
-\
-    .battle-btn\{\
-      font-family:'Press Start 2P', monospace;\
-      font-size:12px;\
-      padding:12px 14px;\
-      background:#f8f8f8;\
-      border:3px solid #1f2a44;\
-      border-radius:6px;\
-      cursor:pointer;\
-      box-shadow: inset 0 0 0 2px #98b0c8;\
-    \}\
-    .battle-btn:hover\{ background:#eef3f8; \}\
-    .battle-btn:active\{ background:#d8e3f0; \}\
-\
-    #touch-controls\{\
-      position:fixed;\
-      bottom:20px;\
-      left:50%;\
-      transform:translateX(-50%);\
-      display:none;\
-      gap:8px;\
-      z-index:100;\
-    \}\
-    .touch-btn\{\
-      width:50px; height:50px;\
-      background:rgba(255,255,255,0.9);\
-      border:3px solid #333;\
-      border-radius:50%;\
-      font-size:20px;\
-      cursor:pointer;\
-      box-shadow:0 2px 4px rgba(0,0,0,0.3);\
-    \}\
-\
-    @media (max-width:600px)\{\
-      #touch-controls\{ display:flex; \}\
-      #game-container\{ transform: scale(0.7); transform-origin:center; \}\
-    \}\
-  </style>\
-</head>\
-<body>\
-  <div id="gba-frame">\
-    <div id="game-container">\
-      <canvas id="game-canvas"></canvas>\
-      <div id="ui-layer"></div>\
-    </div>\
-  </div>\
-\
-  <div id="touch-controls">\
-    <button class="touch-btn" onclick="handleKey('ArrowUp')">\uc0\u8593 </button>\
-    <button class="touch-btn" onclick="handleKey('ArrowLeft')">\uc0\u8592 </button>\
-    <button class="touch-btn" onclick="handleKey('ArrowDown')">\uc0\u8595 </button>\
-    <button class="touch-btn" onclick="handleKey('ArrowRight')">\uc0\u8594 </button>\
-    <button class="touch-btn" onclick="handleKey(' ')">A</button>\
-    <button class="touch-btn" onclick="handleKey('x')">B</button>\
-  </div>\
-\
-<script>\
-/* =========================\
-   CONFIG GBA / CANVAS\
-========================= */\
-const TILE = 16;\
-const SCALE = 3;\
-const COLS = 15;\
-const ROWS = 10;\
-const WIDTH = COLS * TILE * SCALE;\
-const HEIGHT = ROWS * TILE * SCALE;\
-\
-const canvas = document.getElementById('game-canvas');\
-canvas.width = WIDTH;\
-canvas.height = HEIGHT;\
-\
-const gameContainer = document.getElementById('game-container');\
-gameContainer.style.width = WIDTH + 'px';\
-gameContainer.style.height = HEIGHT + 'px';\
-\
-const ctx = canvas.getContext('2d');\
-ctx.imageSmoothingEnabled = false;\
-\
-/* =========================\
-   PALETA GBA (COHERENTE)\
-========================= */\
-const PAL = \{\
-  grass_light: '#9BE070',\
-  grass_mid:   '#6EC44A',\
-  grass_dark:  '#3E9A32',\
-  grass_ink:   '#1E5A25',\
-\
-  tall_light: '#8EEA66',\
-  tall_mid:   '#5FCB44',\
-  tall_dark:  '#2D8F2A',\
-\
-  path_light: '#E6D08A',\
-  path_mid:   '#CDAA63',\
-  path_dark:  '#A68444',\
-  path_edge:  '#7A5E2E',\
-\
-  tree_light: '#4FC05A',\
-  tree_mid:   '#2F8E3A',\
-  tree_dark:  '#1F6A2B',\
-  tree_trunk: '#B07A32',\
-  tree_trunk_dark:'#7B4F1E',\
-\
-  water_light:'#7FC8FF',\
-  water_mid:  '#3F8CF2',\
-  water_dark: '#1E5FBF',\
-  water_ink:  '#133A86',\
-\
-  wall_light: '#FFF2D8',\
-  wall_mid:   '#E9D6B9',\
-  wall_dark:  '#CBB38E',\
-  wall_shadow:'#9E8A67',\
-\
-  window_light:'#BFE9FF',\
-  window_dark: '#2A66A8',\
-\
-  roof_red:      '#E86860',\
-  roof_red_light:'#FF9A90',\
-  roof_red_dark: '#B54842',\
-\
-  roof_blue:      '#5A90E8',\
-  roof_blue_light:'#90BEFF',\
-  roof_blue_dark: '#3B66B8',\
-\
-  roof_green:      '#5FBF6A',\
-  roof_green_light:'#92E59A',\
-  roof_green_dark: '#3A8D44',\
-\
-  door_wood:'#9A5A24',\
-  door_dark:'#3A2416',\
-\
-  ui_outer:'#1F2A44',\
-  ui_inner:'#98B0C8',\
-\};\
-\
-/* =========================\
-   HASH DETERMINISTA (NO PARPADEO)\
-========================= */\
-function h2(x, y, seed = 1) \{\
-  let n = (x * 374761393 + y * 668265263 + seed * 2147483647) >>> 0;\
-  n = (n ^ (n >>> 13)) >>> 0;\
-  n = Math.imul(n, 1274126177) >>> 0;\
-  n = (n ^ (n >>> 16)) >>> 0;\
-  return n / 4294967295;\
-\}\
-\
-/* =========================\
-   TILES\
-========================= */\
-const T = \{\
-  GRASS: 0, GRASS2: 1, TALLGRASS: 2, PATH: 3,\
-  TREE_TL: 10, TREE_TR: 11, TREE_BL: 12, TREE_BR: 13,\
-  WATER: 20,\
-  HOUSE_ROOF_L: 30, HOUSE_ROOF_M: 31, HOUSE_ROOF_R: 32,\
-  HOUSE_WALL_L: 33, HOUSE_WALL_M: 34, HOUSE_WALL_R: 35,\
-  HOUSE_DOOR: 36,\
-  PC_ROOF_L: 40, PC_ROOF_M: 41, PC_ROOF_R: 42,\
-  PC_WALL_L: 43, PC_WALL_M: 44, PC_WALL_R: 45,\
-  PC_DOOR: 46,\
-  MART_ROOF_L: 50, MART_ROOF_M: 51, MART_ROOF_R: 52,\
-  MART_WALL_L: 53, MART_WALL_M: 54, MART_WALL_R: 55,\
-  MART_DOOR: 56,\
-  GYM_ROOF_L: 60, GYM_ROOF_M: 61, GYM_ROOF_R: 62,\
-  GYM_WALL_L: 63, GYM_WALL_M: 64, GYM_WALL_R: 65,\
-  GYM_DOOR: 66,\
-  FENCE_H: 70, FENCE_V: 71, SIGN: 72, FLOWER_R: 73, FLOWER_Y: 74,\
-  ROCK: 81, VINEYARD: 82\
-\};\
-\
-const SOLID_TILES = new Set([\
-  T.TREE_TL, T.TREE_TR, T.TREE_BL, T.TREE_BR,\
-  T.WATER,\
-  T.HOUSE_ROOF_L, T.HOUSE_ROOF_M, T.HOUSE_ROOF_R, T.HOUSE_WALL_L, T.HOUSE_WALL_R,\
-  T.PC_ROOF_L, T.PC_ROOF_M, T.PC_ROOF_R, T.PC_WALL_L, T.PC_WALL_R,\
-  T.MART_ROOF_L, T.MART_ROOF_M, T.MART_ROOF_R, T.MART_WALL_L, T.MART_WALL_R,\
-  T.GYM_ROOF_L, T.GYM_ROOF_M, T.GYM_ROOF_R, T.GYM_WALL_L, T.GYM_WALL_R,\
-  T.FENCE_H, T.FENCE_V, T.ROCK, T.SIGN\
-]);\
-\
-/* =========================\
-   DATOS (PEGA AQU\'cd TUS BLOQUES GRANDES)\
-   - POKEMON_DATA\
-   - MOVES_DATA\
-   - TYPE_CHART\
-   - TYPE_COLORS\
-   - ITEMS\
-   - MAPS\
-   (Yo aqu\'ed dejo m\'ednimos para que el archivo sea auto-ejecutable)\
-========================= */\
-const TYPE_COLORS = \{\
-  'Normal': '#a8a878', 'Fuego': '#f08030', 'Agua': '#6890f0', 'Planta': '#78c850',\
-  'El\'e9ctrico': '#f8d030', 'Volador': '#a890f0', 'Veneno': '#a040a0', 'Roca': '#b8a038',\
-  'Ps\'edquico': '#f85888', 'Fantasma': '#705898', 'Siniestro': '#705848'\
-\};\
-\
-const TYPE_CHART = \{\
-  'Normal': \{ 'Roca': 0.5, 'Fantasma': 0 \},\
-  'Fuego': \{ 'Planta': 2, 'Agua': 0.5, 'Fuego': 0.5, 'Roca': 0.5 \},\
-  'Agua': \{ 'Fuego': 2, 'Planta': 0.5, 'Agua': 0.5, 'Roca': 2 \},\
-  'Planta': \{ 'Agua': 2, 'Fuego': 0.5, 'Planta': 0.5, 'Roca': 2, 'Volador': 0.5 \},\
-  'El\'e9ctrico': \{ 'Agua': 2, 'Volador': 2, 'Planta': 0.5, 'El\'e9ctrico': 0.5, 'Roca': 0 \},\
-  'Volador': \{ 'Planta': 2, 'El\'e9ctrico': 0.5, 'Roca': 0.5 \},\
-  'Roca': \{ 'Fuego': 2, 'Volador': 2 \},\
-  'Veneno': \{ 'Planta': 2, 'Roca': 0.5, 'Fantasma': 0.5 \},\
-  'Ps\'edquico': \{ 'Veneno': 2, 'Ps\'edquico': 0.5 \},\
-  'Fantasma': \{ 'Normal': 0, 'Ps\'edquico': 2, 'Fantasma': 2 \},\
-  'Siniestro': \{ 'Ps\'edquico': 2, 'Fantasma': 2, 'Siniestro': 0.5 \}\
-\};\
-\
-const MOVES_DATA = \{\
-  'Placaje': \{ power: 40, type: 'Normal', acc: 100 \},\
-  'Ascuas': \{ power: 40, type: 'Fuego', acc: 100 \},\
-  'Burbuja': \{ power: 40, type: 'Agua', acc: 100 \},\
-  'L\'e1tigo Cepa': \{ power: 45, type: 'Planta', acc: 100 \},\
-\};\
-\
-const POKEMON_DATA = \{\
-  1: \{ name: 'Bulbasaur', type: 'Planta', hp: 45, atk: 49, def: 49, spd: 45, moves: ['Placaje', 'L\'e1tigo Cepa'] \},\
-  4: \{ name: 'Charmander', type: 'Fuego', hp: 39, atk: 52, def: 43, spd: 65, moves: ['Placaje', 'Ascuas'] \},\
-  7: \{ name: 'Squirtle', type: 'Agua', hp: 44, atk: 48, def: 65, spd: 43, moves: ['Placaje', 'Burbuja'] \},\
-  16:\{ name:'Pidgey', type:'Volador', hp:40, atk:45, def:40, spd:56, moves:['Placaje'] \}\
-\};\
-\
-const ITEMS = \{\
-  pokeball: \{ name: 'Pok\'e9 Ball', price: 200, desc: 'Captura Pok\'e9mon salvajes' \},\
-  potion: \{ name: 'Poci\'f3n', price: 300, desc: 'Restaura 20 PS' \}\
-\};\
-\
-const MAPS = \{\
-  encinacorba: \{\
-    name: 'Encinacorba',\
-    width: 25, height: 20,\
-    encounters: [],\
-    data: null,\
-    npcs: [\
-      \{ x: 8, y: 10, name: 'Prof. Garnacha', sprite: 'professor',\
-        dialog: ['\'a1Bienvenido al mundo Pok\'e9mon!', 'Soy el Profesor Garnacha.', '\'a1Elige tu compa\'f1ero!'],\
-        action: 'starter' \}\
-    ],\
-    buildings: [\
-      \{ x: 4, y: 7, type: 'house', name: 'Tu Casa' \},\
-      \{ x: 10, y: 7, type: 'pokecenter', action: 'heal' \},\
-      \{ x: 16, y: 7, type: 'mart', action: 'shop', items: ['pokeball','potion'] \}\
-    ],\
-    exits: [\
-      \{ x: 24, y: 10, toMap: 'ruta_vino_1', toX: 1, toY: 15 \},\
-      \{ x: 24, y: 11, toMap: 'ruta_vino_1', toX: 1, toY: 16 \}\
-    ],\
-    spawn: \{ x: 12, y: 12 \}\
-  \},\
-  ruta_vino_1: \{\
-    name: 'Ruta del Vino 1',\
-    width: 30, height: 25,\
-    encounters: [\{ id: 16, rate: 100, minLv: 2, maxLv: 4 \}],\
-    data: null,\
-    npcs: [],\
-    buildings: [],\
-    exits: [\
-      \{ x: 0, y: 15, toMap: 'encinacorba', toX: 23, toY: 10 \},\
-      \{ x: 0, y: 16, toMap: 'encinacorba', toX: 23, toY: 11 \},\
-    ],\
-    spawn: \{ x: 2, y: 15 \}\
-  \}\
-\};\
-\
-/* =========================\
-   MAP GENERATION (DETERMINISTA)\
-========================= */\
-function generateMapData() \{\
-  MAPS.encinacorba.data = generateTownMap(25, 20, [\
-    \{ x: 4, y: 6, w: 4, h: 3, type: 'house' \},\
-    \{ x: 10, y: 6, w: 4, h: 3, type: 'pokecenter' \},\
-    \{ x: 16, y: 6, w: 4, h: 3, type: 'mart' \}\
-  ], \{ exitRight: true \});\
-\
-  MAPS.ruta_vino_1.data = generateRouteMap(30, 25, 0.35);\
-\}\
-\
-function generateTownMap(w, h, buildings, opts = \{\}) \{\
-  const map = Array.from(\{length:h\}, (_,y)=> Array.from(\{length:w\}, (_,x)=>\{\
-    if (y < 2 || y >= h-2 || x < 2 || x >= w-2) \{\
-      return ((x+y)&1) ? T.TREE_BR : T.TREE_TL;\
-    \}\
-    const mid = Math.floor(h/2);\
-    if (y >= mid-1 && y <= mid+1) return T.PATH;\
-\
-    const r = h2(x,y,101);\
-    return (r < 0.28) ? T.GRASS2 : T.GRASS;\
-  \}));\
-\
-  buildings.forEach(b=>\{\
-    placeBuilding(map, b.x, b.y, b.type);\
-    const mid = Math.floor(h/2);\
-    for (let py = b.y + 3; py <= mid; py++) \{\
-      map[py][b.x + 1] = T.PATH;\
-      map[py][b.x + 2] = T.PATH;\
-    \}\
-  \});\
-\
-  const mid = Math.floor(h/2);\
-  if (opts.exitLeft) \{\
-    for (let y=mid-1;y<=mid+1;y++)\{ map[y][0]=T.PATH; map[y][1]=T.PATH; \}\
-  \}\
-  if (opts.exitRight) \{\
-    for (let y=mid-1;y<=mid+1;y++)\{ map[y][w-1]=T.PATH; map[y][w-2]=T.PATH; \}\
-  \}\
-\
-  // decoraciones deterministas\
-  for (let i=0;i<10;i++)\{\
-    const fx = 3 + Math.floor(h2(i,7,303)*(w-6));\
-    const fy = 3 + Math.floor(h2(i,9,304)*(h-6));\
-    if (map[fy][fx] === T.GRASS || map[fy][fx] === T.GRASS2) \{\
-      map[fy][fx] = (h2(fx,fy,777) < 0.5) ? T.FLOWER_R : T.FLOWER_Y;\
-    \}\
-  \}\
-  return map;\
-\}\
-\
-function generateRouteMap(w, h, grassDensity) \{\
-  const pathY = Math.floor(h/2);\
-  const map = Array.from(\{length:h\}, (_,y)=> Array.from(\{length:w\}, (_,x)=>\{\
-    if (y < 2 || y >= h-2) return ((x+y)&1) ? T.TREE_BR : T.TREE_TL;\
-    if (Math.abs(y - pathY) <= 1) return T.PATH;\
-\
-    const rG = h2(x,y,203);\
-    if (rG < grassDensity) return T.TALLGRASS;\
-\
-    const rT = h2(x,y,204);\
-    if (rT < 0.06 && x > 3 && x < w-3) return T.TREE_TL;\
-\
-    const r = h2(x,y,205);\
-    return (r < 0.28) ? T.GRASS2 : T.GRASS;\
-  \}));\
-\
-  for (let y=pathY-1;y<=pathY+1;y++)\{\
-    map[y][0]=T.PATH; map[y][1]=T.PATH;\
-    map[y][w-1]=T.PATH; map[y][w-2]=T.PATH;\
-  \}\
-  return map;\
-\}\
-\
-function placeBuilding(map, x, y, type) \{\
-  let roofL, roofM, roofR, wallL, wallM, wallR, door;\
-  switch(type) \{\
-    case 'house':\
-      roofL=T.HOUSE_ROOF_L; roofM=T.HOUSE_ROOF_M; roofR=T.HOUSE_ROOF_R;\
-      wallL=T.HOUSE_WALL_L; wallM=T.HOUSE_WALL_M; wallR=T.HOUSE_WALL_R; door=T.HOUSE_DOOR;\
-      break;\
-    case 'pokecenter':\
-      roofL=T.PC_ROOF_L; roofM=T.PC_ROOF_M; roofR=T.PC_ROOF_R;\
-      wallL=T.PC_WALL_L; wallM=T.PC_WALL_M; wallR=T.PC_WALL_R; door=T.PC_DOOR;\
-      break;\
-    case 'mart':\
-      roofL=T.MART_ROOF_L; roofM=T.MART_ROOF_M; roofR=T.MART_ROOF_R;\
-      wallL=T.MART_WALL_L; wallM=T.MART_WALL_M; wallR=T.MART_WALL_R; door=T.MART_DOOR;\
-      break;\
-    case 'gym':\
-      roofL=T.GYM_ROOF_L; roofM=T.GYM_ROOF_M; roofR=T.GYM_ROOF_R;\
-      wallL=T.GYM_WALL_L; wallM=T.GYM_WALL_M; wallR=T.GYM_WALL_R; door=T.GYM_DOOR;\
-      break;\
-  \}\
-  // techo\
-  map[y][x]=roofL;\
-  map[y][x+1]=roofM;\
-  map[y][x+2]=roofM;\
-  map[y][x+3]=roofR;\
-  // pared\
-  map[y+1][x]=wallL;\
-  map[y+1][x+1]=wallM;\
-  map[y+1][x+2]=wallM;\
-  map[y+1][x+3]=wallR;\
-  // pared inferior con puerta\
-  map[y+2][x]=wallL;\
-  map[y+2][x+1]=door;\
-  map[y+2][x+2]=door;\
-  map[y+2][x+3]=wallR;\
-\}\
-\
-/* =========================\
-   TILESET PIXEL PERFECT (SIN ARC/ELLIPSE)\
-========================= */\
-let tilesetCanvas = null;\
-\
-function drawBuilding(c, x, y, roofMain, roofLight, roofDark) \{\
-  const fill = (xx,yy,w,h,col)=>\{ c.fillStyle=col; c.fillRect(xx,yy,w,h); \};\
-\
-  // 4 tiles ancho (64) x 3 tiles alto (48)\
-  // Roof row\
-  for (let i=0;i<4;i++)\{\
-    const tx = x + i*16;\
-    fill(tx, y, 16, 16, roofMain);\
-    fill(tx, y, 16, 3, roofDark);\
-    fill(tx+2, y+3, 12, 3, roofLight);\
-    // \'93tejas\'94 pixel\
-    for (let r=0;r<3;r++)\{\
-      c.fillStyle = roofDark;\
-      c.fillRect(tx + (r&1?8:0), y + 5 + r*4, 8, 1);\
-    \}\
-  \}\
-\
-  // Wall rows (2)\
-  for (let row=0; row<2; row++)\{\
-    for (let i=0;i<4;i++)\{\
-      const tx = x + i*16;\
-      const ty = y + 16 + row*16;\
-      fill(tx,ty,16,16,PAL.wall_mid);\
-      fill(tx,ty,16,2,PAL.wall_light);\
-      fill(tx,ty+14,16,2,PAL.wall_shadow);\
-\
-      // ventana arriba\
-      if (row===0 && (i===1||i===2))\{\
-        fill(tx+4,ty+4,8,8,PAL.window_dark);\
-        fill(tx+5,ty+5,6,6,PAL.window_light);\
-        fill(tx+8,ty+4,1,8,PAL.wall_dark);\
-        fill(tx+4,ty+8,8,1,PAL.wall_dark);\
-      \}\
-      // puerta abajo\
-      if (row===1 && (i===1||i===2))\{\
-        fill(tx+3,ty+2,10,14,PAL.door_dark);\
-        fill(tx+4,ty+3,8,13,PAL.door_wood);\
-        fill(tx+10,ty+9,2,2,'#F8D030'); // picaporte\
-      \}\
-    \}\
-  \}\
-\}\
-\
-function createGBATileset() \{\
-  const ts = document.createElement('canvas');\
-  ts.width = 256; ts.height = 256;\
-  const c = ts.getContext('2d');\
-  c.imageSmoothingEnabled = false;\
-\
-  const px = (x,y,col)=>\{ c.fillStyle=col; c.fillRect(x,y,1,1); \};\
-  const fill = (x,y,w,h,col)=>\{ c.fillStyle=col; c.fillRect(x,y,w,h); \};\
-\
-  // GRASS (0,0)\
-  fill(0,0,16,16,PAL.grass_mid);\
-  for (let y=0;y<16;y++)\{\
-    for (let x=0;x<16;x++)\{\
-      const r = h2(x,y,11);\
-      if (r < 0.12) px(x,y,PAL.grass_light);\
-      else if (r < 0.18) px(x,y,PAL.grass_dark);\
-    \}\
-  \}\
-\
-  // GRASS2 (16,0)\
-  fill(16,0,16,16,PAL.grass_mid);\
-  for (let y=0;y<16;y++)\{\
-    for (let x=0;x<16;x++)\{\
-      const r = h2(16+x,y,19);\
-      if (r < 0.10) px(16+x,y,PAL.grass_light);\
-      else if (r < 0.16) px(16+x,y,PAL.grass_dark);\
-    \}\
-  \}\
-\
-  // TALLGRASS (32,0)\
-  fill(32,0,16,16,PAL.tall_mid);\
-  for (let x=0; x<16; x+=3) \{\
-    fill(32+x, 3, 2, 12, PAL.tall_dark);\
-    fill(32+x+1, 4, 1, 11, PAL.tall_mid);\
-    px(32+x,2,PAL.tall_light); px(32+x+1,1,PAL.tall_light);\
-  \}\
-\
-  // PATH (48,0)\
-  fill(48,0,16,16,PAL.path_mid);\
-  for (let y=0;y<16;y++)\{\
-    for (let x=0;x<16;x++)\{\
-      const r = h2(48+x,y,29);\
-      if (r < 0.10) px(48+x,y,PAL.path_light);\
-      else if (r < 0.18) px(48+x,y,PAL.path_dark);\
-    \}\
-  \}\
-\
-  // WATER frame A (64,0)\
-  fill(64,0,16,16,PAL.water_mid);\
-  fill(66,4,4,1,PAL.water_light);\
-  fill(72,8,5,1,PAL.water_light);\
-  fill(68,6,3,1,PAL.water_dark);\
-  fill(74,10,4,1,PAL.water_dark);\
-\
-  // WATER frame B (80,0)\
-  fill(80,0,16,16,PAL.water_mid);\
-  fill(82,5,4,1,PAL.water_light);\
-  fill(88,9,5,1,PAL.water_light);\
-  fill(84,7,3,1,PAL.water_dark);\
-  fill(90,11,4,1,PAL.water_dark);\
-\
-  // FLOWER_R (96,0)\
-  fill(96,0,16,16,PAL.grass_mid);\
-  fill(100,6,4,4,'#E85050'); fill(104,10,3,3,'#E85050');\
-  fill(101,7,2,2,'#F8D030'); fill(105,11,1,1,'#F8D030');\
-\
-  // FLOWER_Y (112,0)\
-  fill(112,0,16,16,PAL.grass_mid);\
-  fill(116,6,4,4,'#F8D030'); fill(120,10,3,3,'#F8D030');\
-  fill(117,7,2,2,'#F89030'); fill(121,11,1,1,'#F89030');\
-\
-  // SIGN (128,0)\
-  fill(128,0,16,16,PAL.grass_mid);\
-  fill(135,8,2,8,PAL.tree_trunk);\
-  fill(132,4,10,6,PAL.tree_trunk_dark);\
-  fill(133,5,8,4,'#F8F8E8');\
-\
-  // TREE 2x2 (0,16)(16,16)(0,32)(16,32)\
-  // TL canopy\
-  fill(0,16,16,16,PAL.tree_dark);\
-  fill(2,18,12,10,PAL.tree_mid);\
-  fill(4,20,8,6,PAL.tree_light);\
-  // TR canopy\
-  fill(16,16,16,16,PAL.tree_dark);\
-  fill(18,18,12,10,PAL.tree_mid);\
-  fill(20,20,8,6,PAL.tree_light);\
-  // BL trunk\
-  fill(0,32,16,16,PAL.tree_mid);\
-  fill(5,36,6,10,PAL.tree_trunk);\
-  fill(5,36,2,10,PAL.tree_trunk_dark);\
-  // BR trunk\
-  fill(16,32,16,16,PAL.tree_mid);\
-  fill(21,36,6,10,PAL.tree_trunk);\
-  fill(21,36,2,10,PAL.tree_trunk_dark);\
-\
-  // Buildings blocks\
-  drawBuilding(c, 0, 64, PAL.roof_red, PAL.roof_red_light, PAL.roof_red_dark);\
-  drawBuilding(c, 64, 64, PAL.roof_red, PAL.roof_red_light, PAL.roof_red_dark);\
-  drawBuilding(c, 128, 64, PAL.roof_blue, PAL.roof_blue_light, PAL.roof_blue_dark);\
-  drawBuilding(c, 0, 128, PAL.roof_green, PAL.roof_green_light, PAL.roof_green_dark);\
-\
-  tilesetCanvas = ts;\
-  return ts;\
-\}\
-\
-/* =========================\
-   SPRITES\
-========================= */\
-let playerCanvas = null;\
-\
-function createPlayerSprite() \{\
-  const ps = document.createElement('canvas');\
-  ps.width = 64; ps.height = 64;\
-  const c = ps.getContext('2d');\
-  c.imageSmoothingEnabled = false;\
-\
-  const colors = \{\
-    skin: '#F8C8A0',\
-    skin_dark: '#D8A078',\
-    hair: '#402820',\
-    shirt: '#E03030',\
-    shirt_dark: '#B02020',\
-    pants: '#3058A8',\
-    pants_dark: '#204080',\
-    shoe: '#282828'\
-  \};\
-\
-  function shadow(ox, oy)\{\
-    // shadow pixel (sin ellipse)\
-    c.fillStyle = 'rgba(0,0,0,0.20)';\
-    c.fillRect(ox+3, oy+14, 10, 2);\
-    c.fillRect(ox+4, oy+13, 8, 1);\
-  \}\
-\
-  for (let dir=0; dir<4; dir++)\{\
-    for (let frame=0; frame<2; frame++)\{\
-      const idx = dir*2 + frame;\
-      const ox = (idx % 4) * 16;\
-      const oy = Math.floor(idx / 4) * 16;\
-\
-      shadow(ox,oy);\
-\
-      const legOffset = frame === 1 ? 1 : 0;\
-      c.fillStyle = colors.pants;\
-      c.fillRect(ox+5, oy+10-legOffset, 3, 4+legOffset);\
-      c.fillRect(ox+8, oy+10+legOffset, 3, 4-legOffset);\
-      c.fillStyle = colors.pants_dark;\
-      c.fillRect(ox+5, oy+10-legOffset, 1, 4+legOffset);\
-      c.fillRect(ox+8, oy+10+legOffset, 1, 4-legOffset);\
-\
-      c.fillStyle = colors.shoe;\
-      c.fillRect(ox+5, oy+13, 3, 2);\
-      c.fillRect(ox+8, oy+13, 3, 2);\
-\
-      c.fillStyle = colors.shirt;\
-      c.fillRect(ox+4, oy+6, 8, 5);\
-      c.fillStyle = colors.shirt_dark;\
-      c.fillRect(ox+4, oy+6, 2, 5);\
-      c.fillRect(ox+10, oy+6, 2, 5);\
-\
-      c.fillStyle = colors.shirt;\
-      c.fillRect(ox+2, oy+6, 2, 4);\
-      c.fillRect(ox+12, oy+6, 2, 4);\
-      c.fillStyle = colors.skin;\
-      c.fillRect(ox+2, oy+10, 2, 1);\
-      c.fillRect(ox+12, oy+10, 2, 1);\
-\
-      c.fillStyle = colors.skin;\
-      c.fillRect(ox+5, oy+2, 6, 5);\
-\
-      c.fillStyle = colors.hair;\
-      c.fillRect(ox+4, oy, 8, 3);\
-      c.fillStyle = colors.shirt;\
-      c.fillRect(ox+3, oy+1, 10, 2);\
-      c.fillStyle = '#FFF';\
-      c.fillRect(ox+5, oy+2, 2, 1);\
-\
-      c.fillStyle = '#000';\
-      if (dir === 0)\{\
-        c.fillRect(ox+6, oy+4, 1, 2);\
-        c.fillRect(ox+9, oy+4, 1, 2);\
-      \} else if (dir === 2)\{\
-        c.fillRect(ox+6, oy+4, 1, 2);\
-      \} else if (dir === 3)\{\
-        c.fillRect(ox+9, oy+4, 1, 2);\
-      \}\
-    \}\
-  \}\
-\
-  playerCanvas = ps;\
-  return ps;\
-\}\
-\
-let npcSprites = \{\};\
-function createNPCSprites()\{\
-  const types = \{\
-    professor: \{ shirt: '#F0F0F0', pants:'#484848', hair:'#808080' \},\
-    trainer:   \{ shirt: '#4169E1', pants:'#2F2F2F', hair:'#483818' \},\
-    oldman:    \{ shirt: '#8B4513', pants:'#483818', hair:'#C0C0C0' \},\
-    mom:       \{ shirt: '#FF69B4', pants:'#4A4A4A', hair:'#8B4513' \},\
-    gymleader: \{ shirt: '#228B22', pants:'#2F2F2F', hair:'#000000' \},\
-    champion:  \{ shirt: '#8B0000', pants:'#1A1A1A', hair:'#FFD700' \}\
-  \};\
-  for (const [name, colors] of Object.entries(types))\{\
-    const c = document.createElement('canvas');\
-    c.width=16; c.height=16;\
-    const g = c.getContext('2d');\
-    g.imageSmoothingEnabled = false;\
-\
-    g.fillStyle = colors.shirt; g.fillRect(4,6,8,5);\
-    g.fillStyle = colors.pants; g.fillRect(5,11,3,4); g.fillRect(8,11,3,4);\
-    g.fillStyle = '#F8C8A0'; g.fillRect(5,2,6,5);\
-    g.fillStyle = colors.hair; g.fillRect(4,1,8,3);\
-\
-    g.fillStyle='#000'; g.fillRect(6,4,1,1); g.fillRect(9,4,1,1);\
-    npcSprites[name]=c;\
-  \}\
-\}\
-\
-/* =========================\
-   POKEMON SPRITES (PUEDES CAMBIAR A SPRITES FRLG SI QUIERES)\
-========================= */\
-const pokemonSpriteCache = \{\};\
-const POKE_SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';\
-function getPokemonSprite(id, back=false)\{\
-  const key = `$\{id\}_$\{back?'back':'front'\}`;\
-  if (!pokemonSpriteCache[key])\{\
-    const img = new Image();\
-    img.crossOrigin = 'anonymous';\
-    img.src = `$\{POKE_SPRITE_BASE\}$\{back?'/back':''\}/$\{id\}.png`;\
-    pokemonSpriteCache[key]=img;\
-  \}\
-  return pokemonSpriteCache[key];\
-\}\
-\
-/* =========================\
-   GAME STATE\
-========================= */\
-let game = \{\
-  state:'title',\
-  map:'encinacorba',\
-  player:\{ x:12, y:12, dir:0, moving:false \},\
-  pokemon:[],\
-  money:3000,\
-  items:\{ pokeball:5, potion:3 \},\
-  badges:[],\
-  defeatedTrainers:[],\
-  starterChosen:false,\
-  starterIndex:0,\
-  dialog:null,\
-  battle:null,\
-  menu:null,\
-  animFrame:0\
-\};\
-\
-/* =========================\
-   RENDER\
-========================= */\
-function drawWindowFrame(x, y, w, h)\{\
-  ctx.fillStyle = '#F8F8F8';\
-  ctx.fillRect(x,y,w,h);\
-\
-  ctx.lineWidth = 4;\
-  ctx.strokeStyle = PAL.ui_outer;\
-  ctx.strokeRect(x,y,w,h);\
-\
-  ctx.lineWidth = 2;\
-  ctx.strokeStyle = PAL.ui_inner;\
-  ctx.strokeRect(x+4,y+4,w-8,h-8);\
-\
-  ctx.fillStyle = 'rgba(0,0,0,0.10)';\
-  ctx.fillRect(x+6, y+h-10, w-12, 4);\
-\}\
-\
-function render()\{\
-  ctx.fillStyle='#000';\
-  ctx.fillRect(0,0,WIDTH,HEIGHT);\
-  game.animFrame++;\
-\
-  if (game.state==='title') return renderTitle();\
-  if (game.state==='starter') return renderStarter();\
-  if (game.state==='world') return renderWorld();\
-  if (game.state==='battle') return renderBattle();\
-  if (game.state==='menu') return renderMenu();\
-\}\
-\
-function renderTitle()\{\
-  const grad = ctx.createLinearGradient(0,0,0,HEIGHT);\
-  grad.addColorStop(0,'#0a0a2e');\
-  grad.addColorStop(1,'#2a1a3e');\
-  ctx.fillStyle=grad;\
-  ctx.fillRect(0,0,WIDTH,HEIGHT);\
-\
-  ctx.fillStyle='#f8d030';\
-  ctx.font=`bold $\{28\}px "Press Start 2P"`;\
-  ctx.textAlign='center';\
-  ctx.strokeStyle='#b08000';\
-  ctx.lineWidth=4;\
-  ctx.strokeText('POK\'c9MON', WIDTH/2, 80);\
-  ctx.fillText('POK\'c9MON', WIDTH/2, 80);\
-\
-  ctx.fillStyle='#f85888';\
-  ctx.font=`$\{16\}px "Press Start 2P"`;\
-  ctx.fillText('COMARCA DE', WIDTH/2, 120);\
-\
-  ctx.fillStyle='#a83860';\
-  ctx.font=`$\{20\}px "Press Start 2P"`;\
-  ctx.fillText('CARI\'d1ENA', WIDTH/2, 155);\
-\
-  if (Math.floor(game.animFrame/30)%2===0)\{\
-    ctx.fillStyle='#fff';\
-    ctx.font=`$\{12\}px "Press Start 2P"`;\
-    ctx.fillText('PULSA ESPACIO', WIDTH/2, HEIGHT-60);\
-  \}\
-\}\
-\
-function renderStarter()\{\
-  ctx.fillStyle='#E8E0D0';\
-  ctx.fillRect(0,0,WIDTH,HEIGHT);\
-\
-  ctx.fillStyle='#483018';\
-  ctx.font=`$\{14\}px "Press Start 2P"`;\
-  ctx.textAlign='center';\
-  ctx.fillText('\'a1Elige tu primer Pok\'e9mon!', WIDTH/2, 40);\
-\
-  const starters = [\
-    \{id:1, name:'Bulbasaur', type:'Planta'\},\
-    \{id:4, name:'Charmander', type:'Fuego'\},\
-    \{id:7, name:'Squirtle', type:'Agua'\}\
-  ];\
-\
-  const boxW=120, boxH=180;\
-  const startX = (WIDTH - boxW*3 - 40)/2;\
-\
-  starters.forEach((s,i)=>\{\
-    const x = startX + i*(boxW+20);\
-    const y = 70;\
-    const selected = game.starterIndex===i;\
-\
-    ctx.fillStyle = selected ? (TYPE_COLORS[s.type]||'#fff') : '#fff';\
-    ctx.fillRect(x,y,boxW,boxH);\
-    ctx.strokeStyle='#483018';\
-    ctx.lineWidth = selected?4:2;\
-    ctx.strokeRect(x,y,boxW,boxH);\
-\
-    const sprite = getPokemonSprite(s.id);\
-    if (sprite.complete) ctx.drawImage(sprite, x+12, y+15, 96, 96);\
-\
-    ctx.fillStyle = selected ? '#fff' : '#483018';\
-    ctx.font=`$\{10\}px "Press Start 2P"`;\
-    ctx.fillText(s.name, x+boxW/2, y+130);\
-\
-    ctx.fillStyle = selected ? '#fff' : (TYPE_COLORS[s.type]||'#483018');\
-    ctx.font=`$\{8\}px "Press Start 2P"`;\
-    ctx.fillText(s.type, x+boxW/2, y+150);\
-\
-    if (selected)\{\
-      ctx.fillStyle='#f85888';\
-      ctx.beginPath();\
-      ctx.moveTo(x+boxW/2-8, y-15);\
-      ctx.lineTo(x+boxW/2+8, y-15);\
-      ctx.lineTo(x+boxW/2, y-5);\
-      ctx.fill();\
-    \}\
-  \});\
-\
-  ctx.fillStyle='#483018';\
-  ctx.font=`$\{10\}px "Press Start 2P"`;\
-  ctx.fillText('\uc0\u8592  \u8594  elegir   ESPACIO confirmar', WIDTH/2, HEIGHT-30);\
-\}\
-\
-function drawTile(tile, dx, dy)\{\
-  const ts = tilesetCanvas;\
-  const s = TILE*SCALE;\
-\
-  let sx=0, sy=0;\
-\
-  switch(tile)\{\
-    case T.GRASS: sx=0; sy=0; break;\
-    case T.GRASS2: sx=16; sy=0; break;\
-    case T.TALLGRASS: sx=32; sy=0; break;\
-    case T.PATH: sx=48; sy=0; break;\
-\
-    case T.WATER:\{\
-      // agua animada A/B\
-      const frame = (Math.floor(game.animFrame/18)%2);\
-      sx = frame===0 ? 64 : 80;\
-      sy = 0;\
-      break;\
-    \}\
-\
-    case T.FLOWER_R: sx=96; sy=0; break;\
-    case T.FLOWER_Y: sx=112; sy=0; break;\
-    case T.SIGN: sx=128; sy=0; break;\
-\
-    case T.TREE_TL: sx=0; sy=16; break;\
-    case T.TREE_TR: sx=16; sy=16; break;\
-    case T.TREE_BL: sx=0; sy=32; break;\
-    case T.TREE_BR: sx=16; sy=32; break;\
-\
-    // Casa (bloque 0,64)\
-    case T.HOUSE_ROOF_L: sx=0; sy=64; break;\
-    case T.HOUSE_ROOF_M: sx=16; sy=64; break;\
-    case T.HOUSE_ROOF_R: sx=48; sy=64; break;\
-    case T.HOUSE_WALL_L: sx=0; sy=80; break;\
-    case T.HOUSE_WALL_M: sx=16; sy=80; break;\
-    case T.HOUSE_WALL_R: sx=48; sy=80; break;\
-    case T.HOUSE_DOOR: sx=32; sy=96; break;\
-\
-    // PC (64,64)\
-    case T.PC_ROOF_L: sx=64; sy=64; break;\
-    case T.PC_ROOF_M: sx=80; sy=64; break;\
-    case T.PC_ROOF_R: sx=112; sy=64; break;\
-    case T.PC_WALL_L: sx=64; sy=80; break;\
-    case T.PC_WALL_M: sx=80; sy=80; break;\
-    case T.PC_WALL_R: sx=112; sy=80; break;\
-    case T.PC_DOOR: sx=96; sy=96; break;\
-\
-    // MART (128,64)\
-    case T.MART_ROOF_L: sx=128; sy=64; break;\
-    case T.MART_ROOF_M: sx=144; sy=64; break;\
-    case T.MART_ROOF_R: sx=176; sy=64; break;\
-    case T.MART_WALL_L: sx=128; sy=80; break;\
-    case T.MART_WALL_M: sx=144; sy=80; break;\
-    case T.MART_WALL_R: sx=176; sy=80; break;\
-    case T.MART_DOOR: sx=160; sy=96; break;\
-\
-    // GYM (0,128)\
-    case T.GYM_ROOF_L: sx=0; sy=128; break;\
-    case T.GYM_ROOF_M: sx=16; sy=128; break;\
-    case T.GYM_ROOF_R: sx=48; sy=128; break;\
-    case T.GYM_WALL_L: sx=0; sy=144; break;\
-    case T.GYM_WALL_M: sx=16; sy=144; break;\
-    case T.GYM_WALL_R: sx=48; sy=144; break;\
-    case T.GYM_DOOR: sx=32; sy=160; break;\
-\
-    default: sx=0; sy=0;\
-  \}\
-\
-  ctx.drawImage(ts, sx, sy, 16, 16, dx, dy, s, s);\
-\}\
-\
-function renderWorld()\{\
-  const map = MAPS[game.map];\
-  if (!map?.data) return;\
-\
-  const camX = Math.max(0, Math.min(game.player.x - Math.floor(COLS/2), map.width - COLS));\
-  const camY = Math.max(0, Math.min(game.player.y - Math.floor(ROWS/2), map.height - ROWS));\
-\
-  for (let y=0; y<ROWS+1; y++)\{\
-    for (let x=0; x<COLS+1; x++)\{\
-      const mx = camX + x;\
-      const my = camY + y;\
-      if (mx>=0 && mx<map.width && my>=0 && my<map.height)\{\
-        drawTile(map.data[my][mx], x*TILE*SCALE, y*TILE*SCALE);\
-      \}\
-    \}\
-  \}\
-\
-  // NPCs\
-  map.npcs?.forEach(npc=>\{\
-    const sx = (npc.x - camX)*TILE*SCALE;\
-    const sy = (npc.y - camY)*TILE*SCALE;\
-    if (sx>-TILE*SCALE && sx<WIDTH+TILE*SCALE && sy>-TILE*SCALE && sy<HEIGHT+TILE*SCALE)\{\
-      const spr = npcSprites[npc.sprite] || npcSprites.trainer;\
-      ctx.drawImage(spr, 0,0,16,16, sx, sy - 4*SCALE, TILE*SCALE, TILE*SCALE);\
-    \}\
-  \});\
-\
-  // Player\
-  const px = (game.player.x - camX)*TILE*SCALE;\
-  const py = (game.player.y - camY)*TILE*SCALE;\
-  const frame = game.player.moving ? (Math.floor(game.animFrame/8)%2) : 0;\
-  const srcX = ((game.player.dir*2 + frame) % 4)*16;\
-  const srcY = Math.floor((game.player.dir*2 + frame)/4)*16;\
-  ctx.drawImage(playerCanvas, srcX,srcY,16,16, px, py - 4*SCALE, TILE*SCALE, TILE*SCALE);\
-\
-  // Location\
-  drawWindowFrame(4*SCALE, 4*SCALE, 170*SCALE, 24*SCALE);\
-  ctx.fillStyle='#223050';\
-  ctx.font=`$\{9*SCALE\}px "Press Start 2P"`;\
-  ctx.textAlign='left';\
-  ctx.fillText(map.name, 12*SCALE, 20*SCALE);\
-\
-  // Money\
-  ctx.textAlign='right';\
-  ctx.font=`$\{10\}px "Press Start 2P"`;\
-  ctx.fillStyle='#fff';\
-  ctx.fillText(`\uc0\u8359 $\{game.money\}`, WIDTH-10, 20);\
-\
-  if (game.dialog) renderDialog();\
-\}\
-\
-function renderDialog()\{\
-  const ui = document.getElementById('ui-layer');\
-  const d = game.dialog;\
-  ui.innerHTML = `\
-    <div class="textbox">\
-      <div style="font-size:$\{10\}px; white-space:pre-line;">$\{d.text\}</div>\
-      $\{d.options ? `\
-        <div style="margin-top:12px; display:flex; gap:20px; flex-wrap:wrap;">\
-          $\{d.options.map((o,i)=>`\
-            <span style="color:$\{d.selected===i?'#d64545':'#1e1e1e'\}">\
-              $\{d.selected===i?'\uc0\u9654 ':'&nbsp;&nbsp;'\} $\{o\}\
-            </span>\
-          `).join('')\}\
-        </div>\
-      ` : `<div style="margin-top:12px; color:#223050; font-size:10px;">\uc0\u9660 </div>`\}\
-    </div>\
-  `;\
-\}\
-\
-/* =========================\
-   BATTLE (BUGS CORREGIDOS)\
-========================= */\
-function drawHPBar(x, y, w, hp, maxHp)\{\
-  const pct = Math.max(0, Math.min(1, hp/maxHp));\
-  const color = (pct>0.5) ? '#58b058' : (pct>0.2) ? '#f2c14e' : '#e05454';\
-\
-  ctx.fillStyle='#2a2a2a'; ctx.fillRect(x,y,w,10*SCALE);\
-  ctx.fillStyle='#111826'; ctx.fillRect(x+2,y+2,w-4,6*SCALE);\
-  ctx.fillStyle=color;     ctx.fillRect(x+2,y+2,(w-4)*pct,6*SCALE);\
-\
-  ctx.fillStyle='#000';\
-  ctx.font=`$\{7*SCALE\}px "Press Start 2P"`;\
-  ctx.textAlign='left';\
-  ctx.fillText('HP', x - 10, y + 8*SCALE);\
-\}\
-\
-function drawHPBox(x,y,w,poke, showNumbers)\{\
-  drawWindowFrame(x,y,w,56*SCALE);\
-  ctx.fillStyle='#000';\
-  ctx.font=`$\{10*SCALE\}px "Press Start 2P"`;\
-  ctx.textAlign='left';\
-  ctx.fillText(poke.name, x+10*SCALE, y+18*SCALE);\
-  ctx.textAlign='right';\
-  ctx.font=`$\{8*SCALE\}px "Press Start 2P"`;\
-  ctx.fillText(`Nv$\{poke.level\}`, x+w-10*SCALE, y+18*SCALE);\
-\
-  // HP bar\
-  drawHPBar(x+14*SCALE, y+26*SCALE, w-28*SCALE, poke.hp, poke.maxHp);\
-\
-  if (showNumbers)\{\
-    ctx.textAlign='right';\
-    ctx.fillStyle='#000';\
-    ctx.font=`$\{8*SCALE\}px "Press Start 2P"`;\
-    ctx.fillText(`$\{poke.hp\}/$\{poke.maxHp\}`, x+w-10*SCALE, y+48*SCALE);\
-  \}\
-\}\
-\
-function renderBattle()\{\
-  const b = game.battle;\
-  if (!b) return;\
-\
-  // Background (simple, limpio, no gradientes raros)\
-  ctx.fillStyle='#88c8ff';\
-  ctx.fillRect(0,0,WIDTH,HEIGHT*0.45);\
-  ctx.fillStyle='#6bb347';\
-  ctx.fillRect(0,HEIGHT*0.45,WIDTH,HEIGHT*0.25);\
-\
-  // Platforms (pixelish)\
-  ctx.fillStyle='#5aa13b';\
-  ctx.fillRect(WIDTH*0.60, HEIGHT*0.40, 160, 30);\
-  ctx.fillRect(WIDTH*0.10, HEIGHT*0.67, 180, 36);\
-  ctx.fillStyle='#3f7d2b';\
-  ctx.fillRect(WIDTH*0.60, HEIGHT*0.40+24, 160, 6);\
-  ctx.fillRect(WIDTH*0.10, HEIGHT*0.67+30, 180, 6);\
-\
-  // Enemy sprite\
-  const enemySprite = getPokemonSprite(b.enemy.id,false);\
-  if (enemySprite.complete)\{\
-    ctx.drawImage(enemySprite, WIDTH*0.60, HEIGHT*0.08, 100, 100);\
-  \}\
-\
-  // Player back sprite\
-  const playerSprite = getPokemonSprite(b.player.id,true);\
-  if (playerSprite.complete)\{\
-    ctx.drawImage(playerSprite, WIDTH*0.08, HEIGHT*0.32, 120, 120);\
-  \}\
-\
-  // HP Boxes\
-  drawHPBox(8*SCALE, 14*SCALE, 190*SCALE, b.enemy, false);\
-  drawHPBox(WIDTH - 210*SCALE, HEIGHT*0.50, 200*SCALE, b.player, true);\
-\
-  renderBattleUI();\
-\}\
-\
-function renderBattleUI()\{\
-  const b = game.battle;\
-  const ui = document.getElementById('ui-layer');\
-\
-  if (b.message)\{\
-    ui.innerHTML = `\
-      <div class="battle-ui" style="display:flex; align-items:center;">\
-        <div style="font-size:12px; white-space:pre-line;">$\{b.message\}</div>\
-      </div>\
-    `;\
-    return;\
-  \}\
-\
-  if (b.phase==='action')\{\
-    ui.innerHTML = `\
-      <div class="battle-ui" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">\
-        <button class="battle-btn" onclick="battleAction('fight')">LUCHAR</button>\
-        <button class="battle-btn" onclick="battleAction('bag')">MOCHILA</button>\
-        <button class="battle-btn" onclick="battleAction('pokemon')">POK\'c9MON</button>\
-        <button class="battle-btn" onclick="battleAction('run')">HUIR</button>\
-      </div>\
-    `;\
-    return;\
-  \}\
-\
-  if (b.phase==='moves')\{\
-    const moves = b.player.moves || [];\
-    ui.innerHTML = `\
-      <div class="battle-ui" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">\
-        $\{moves.map((m,i)=>\{\
-          const md = MOVES_DATA[m] || \{type:'Normal'\};\
-          const tc = TYPE_COLORS[md.type] || '#ddd';\
-          return `<button class="battle-btn" style="background:$\{tc\}33;" onclick="useMove($\{i\})">$\{m\}</button>`;\
-        \}).join('')\}\
-      </div>\
-      <button class="battle-btn" style="position:absolute; bottom:125px; right:10px; padding:8px 12px;"\
-        onclick="game.battle.phase='action'; game.battle.message=null; render();">\uc0\u8592  Volver</button>\
-    `;\
-  \}\
-\}\
-\
-/* =========================\
-   MENU (BUG y VARIABLE y CORREGIDOS)\
-========================= */\
-function renderMenu()\{\
-  renderWorld();\
-  ctx.fillStyle='rgba(0,0,0,0.4)';\
-  ctx.fillRect(0,0,WIDTH,HEIGHT);\
-\
-  const menuX = WIDTH - 160*SCALE;\
-  const menuY = 16*SCALE;\
-  drawWindowFrame(menuX, menuY, 150*SCALE, 180*SCALE);\
-\
-  const items = ['POK\'e9MON', 'MOCHILA', 'MEDALLAS', 'GUARDAR', 'SALIR'];\
-  ctx.font = `$\{11\}px "Press Start 2P"`;\
-  ctx.textAlign='left';\
-\
-  items.forEach((label,i)=>\{\
-    const yy = menuY + 30 + i*30;\
-    if (game.menu.index===i)\{\
-      ctx.fillStyle='#d64545';\
-      ctx.fillText('\uc0\u9654 ', menuX + 10, yy);\
-    \}\
-    ctx.fillStyle='#1e1e1e';\
-    ctx.fillText(label, menuX + 30, yy);\
-  \});\
-\}\
-\
-/* =========================\
-   INPUT + LOGIC\
-========================= */\
-function handleKey(key)\{\
-  switch(game.state)\{\
-    case 'title':\
-      if (key===' ' || key==='Enter')\{\
-        game.state = game.starterChosen ? 'world' : 'starter';\
-      \}\
-      break;\
-\
-    case 'starter':\
-      if (key==='ArrowLeft') game.starterIndex = Math.max(0, game.starterIndex-1);\
-      if (key==='ArrowRight') game.starterIndex = Math.min(2, game.starterIndex+1);\
-      if (key===' ' || key==='Enter')\{\
-        const ids=[1,4,7];\
-        const p = createPokemon(ids[game.starterIndex], 5);\
-        game.pokemon=[p];\
-        game.starterChosen=true;\
-        game.state='world';\
-        showDialog(`\'a1$\{p.name\} se uni\'f3 a tu equipo!`);\
-      \}\
-      break;\
-\
-    case 'world':\
-      if (game.dialog) \{\
-        handleDialogInput(key);\
-      \} else if (key==='x' || key==='Escape')\{\
-        game.state='menu';\
-        game.menu=\{ index:0 \};\
-      \} else if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key))\{\
-        movePlayer(key);\
-      \} else if (key===' ' || key==='Enter')\{\
-        interact();\
-      \}\
-      break;\
-\
-    case 'battle':\
-      if (game.battle?.message && (key===' ' || key==='Enter'))\{\
-        game.battle.message=null;\
-        const cb = game.battle.callback;\
-        game.battle.callback=null;\
-        if (cb) cb();\
-      \}\
-      break;\
-\
-    case 'menu':\
-      if (key==='x' || key==='Escape')\{\
-        game.state='world';\
-        game.menu=null;\
-        document.getElementById('ui-layer').innerHTML='';\
-      \} else if (key==='ArrowUp')\{\
-        game.menu.index = Math.max(0, game.menu.index-1);\
-      \} else if (key==='ArrowDown')\{\
-        game.menu.index = Math.min(4, game.menu.index+1);\
-      \} else if (key===' ' || key==='Enter')\{\
-        executeMenu();\
-      \}\
-      break;\
-  \}\
-  render();\
-\}\
-\
-function handleDialogInput(key)\{\
-  if (game.dialog.options)\{\
-    if (key==='ArrowLeft') game.dialog.selected=Math.max(0, game.dialog.selected-1);\
-    if (key==='ArrowRight') game.dialog.selected=Math.min(game.dialog.options.length-1, game.dialog.selected+1);\
-    if (key===' ' || key==='Enter')\{\
-      const cb = game.dialog.callback;\
-      const sel = game.dialog.selected;\
-      closeDialog();\
-      if (cb) cb(sel);\
-    \}\
-  \} else \{\
-    if (key===' ' || key==='Enter')\{\
-      const cb = game.dialog.callback;\
-      closeDialog();\
-      if (cb) cb();\
-    \}\
-  \}\
-\}\
-\
-function movePlayer(dirKey)\{\
-  if (game.player.moving) return;\
-\
-  const dirs = \{\
-    'ArrowDown': \{dx:0, dy:1, d:0\},\
-    'ArrowUp': \{dx:0, dy:-1, d:1\},\
-    'ArrowLeft': \{dx:-1, dy:0, d:2\},\
-    'ArrowRight': \{dx:1, dy:0, d:3\}\
-  \};\
-  const \{dx,dy,d\} = dirs[dirKey];\
-  game.player.dir=d;\
-\
-  const map = MAPS[game.map];\
-  const nx = game.player.x+dx;\
-  const ny = game.player.y+dy;\
-\
-  // exits\
-  const exit = map.exits?.find(e=> e.x===nx && e.y===ny);\
-  if (exit)\{\
-    game.map = exit.toMap;\
-    game.player.x = exit.toX;\
-    game.player.y = exit.toY;\
-    return;\
-  \}\
-\
-  if (nx<0 || ny<0 || nx>=map.width || ny>=map.height) return;\
-\
-  const tile = map.data[ny][nx];\
-  if (SOLID_TILES.has(tile)) return;\
-\
-  if (map.npcs?.some(n=> n.x===nx && n.y===ny)) return;\
-\
-  game.player.moving=true;\
-  game.player.x=nx; game.player.y=ny;\
-\
-  setTimeout(()=>\{\
-    game.player.moving=false;\
-\
-    if (tile===T.TALLGRASS && map.encounters?.length)\{\
-      if (h2(nx,ny,999) < 0.12) startWildBattle();\
-    \}\
-    render();\
-  \}, 90);\
-\}\
-\
-function interact()\{\
-  const map = MAPS[game.map];\
-  const dirs = [[0,1],[0,-1],[-1,0],[1,0]];\
-  const [dx,dy] = dirs[game.player.dir];\
-  const tx = game.player.x+dx;\
-  const ty = game.player.y+dy;\
-\
-  const npc = map.npcs?.find(n=> n.x===tx && n.y===ty);\
-  if (npc)\{\
-    if (npc.action==='starter' && !game.starterChosen)\{\
-      showDialogSequence(npc.dialog, ()=>\{ game.state='starter'; render(); \});\
-    \} else \{\
-      showDialogSequence(npc.dialog);\
-    \}\
-    return;\
-  \}\
-\
-  const tile = map.data[ty]?.[tx];\
-  if ([T.HOUSE_DOOR, T.PC_DOOR, T.MART_DOOR, T.GYM_DOOR].includes(tile))\{\
-    const building = map.buildings?.find(b=>\{\
-      return ty === b.y+2 && (tx===b.x+1 || tx===b.x+2);\
-    \});\
-    if (building?.action==='heal')\{\
-      game.pokemon.forEach(p=> p.hp=p.maxHp);\
-      showDialog('\'a1Tus Pok\'e9mon han sido curados!');\
-    \} else if (building?.action==='shop')\{\
-      openShop(building.items || ['pokeball','potion']);\
-    \} else \{\
-      showDialog('La puerta est\'e1 cerrada.');\
-    \}\
-  \}\
-\}\
-\
-function showDialog(text, callback)\{\
-  game.dialog=\{ text, callback \};\
-  render();\
-\}\
-function showDialogSequence(texts, callback)\{\
-  if (!Array.isArray(texts)) texts=[texts];\
-  let i=0;\
-  const next=()=>\{\
-    if (i<texts.length)\{\
-      showDialog(texts[i], ()=>\{ i++; next(); \});\
-    \} else if (callback) callback();\
-  \};\
-  next();\
-\}\
-function showDialogOptions(text, options, callback)\{\
-  game.dialog=\{ text, options, selected:0, callback \};\
-  render();\
-\}\
-function closeDialog()\{\
-  game.dialog=null;\
-  document.getElementById('ui-layer').innerHTML='';\
-\}\
-\
-function openShop(itemIds)\{\
-  const list = itemIds.map(id=> `$\{ITEMS[id].name\} - \uc0\u8359 $\{ITEMS[id].price\}`).join('\\n');\
-  showDialog(`\'a1Bienvenido!\\n\\n$\{list\}`, ()=>\{\
-    showDialogOptions('\'bfQu\'e9 deseas comprar?', [...itemIds.map(id=>ITEMS[id].name),'Nada'], (sel)=>\{\
-      if (sel < itemIds.length)\{\
-        const itemId = itemIds[sel];\
-        const item = ITEMS[itemId];\
-        if (game.money >= item.price)\{\
-          game.money -= item.price;\
-          game.items[itemId] = (game.items[itemId]||0)+1;\
-          showDialog(`\'a1Has comprado $\{item.name\}!`);\
-        \} else showDialog('No tienes suficiente dinero.');\
-      \}\
-    \});\
-  \});\
-\}\
-\
-function executeMenu()\{\
-  switch(game.menu.index)\{\
-    case 0:\{\
-      let txt='Tu equipo:\\n\\n';\
-      game.pokemon.forEach(p=>\{\
-        txt += `$\{p.name\} Nv.$\{p.level\}\\nPS: $\{p.hp\}/$\{p.maxHp\}\\n\\n`;\
-      \});\
-      showDialog(txt);\
-      break;\
-    \}\
-    case 1:\{\
-      let bag='Mochila:\\n\\n';\
-      for (const [id,count] of Object.entries(game.items))\{\
-        if (count>0 && ITEMS[id]) bag += `$\{ITEMS[id].name\} x$\{count\}\\n`;\
-      \}\
-      if (bag==='Mochila:\\n\\n') bag += '(vac\'eda)';\
-      showDialog(bag);\
-      break;\
-    \}\
-    case 2:\{\
-      const badges = game.badges.length ? game.badges.join('\\n') : '(ninguna)';\
-      showDialog(`Medallas:\\n\\n$\{badges\}`);\
-      break;\
-    \}\
-    case 3:\{\
-      localStorage.setItem('pokemon_comarca_save', JSON.stringify(game));\
-      showDialog('\'a1Partida guardada!');\
-      break;\
-    \}\
-    case 4:\{\
-      game.state='world';\
-      game.menu=null;\
-      document.getElementById('ui-layer').innerHTML='';\
-      break;\
-    \}\
-  \}\
-\}\
-\
-/* =========================\
-   POKEMON + BATTLES\
-========================= */\
-function createPokemon(id, level)\{\
-  const d = POKEMON_DATA[id];\
-  if (!d) return null;\
-  const p = \{\
-    id, name:d.name, type:d.type, level,\
-    maxHp: Math.floor((d.hp*2*level/100)+level+10),\
-    atk:   Math.floor((d.atk*2*level/100)+5),\
-    def:   Math.floor((d.def*2*level/100)+5),\
-    spd:   Math.floor((d.spd*2*level/100)+5),\
-    moves: (d.moves||[]).slice(0,4),\
-    exp:0, expNext: level*level*4\
-  \};\
-  p.hp = p.maxHp;\
-  return p;\
-\}\
-\
-function getTypeEffectiveness(attackType, defenseType)\{\
-  const chart = TYPE_CHART[attackType];\
-  if (chart && chart[defenseType]!==undefined) return chart[defenseType];\
-  return 1;\
-\}\
-\
-function startWildBattle()\{\
-  const map = MAPS[game.map];\
-  const encounters = map.encounters || [];\
-  const total = encounters.reduce((s,e)=>s+e.rate,0);\
-  let r = Math.random()*total;\
-  let enc = encounters[0];\
-  for (const e of encounters)\{\
-    r -= e.rate;\
-    if (r<=0)\{ enc=e; break; \}\
-  \}\
-  const lv = Math.floor(Math.random()*(enc.maxLv-enc.minLv+1))+enc.minLv;\
-  const enemy = createPokemon(enc.id, lv);\
-\
-  game.battle = \{\
-    type:'wild',\
-    player: \{...game.pokemon[0]\},\
-    enemy,\
-    phase:'action',\
-    message:`\'a1Un $\{enemy.name\} salvaje apareci\'f3!`,\
-    callback:null\
-  \};\
-  game.state='battle';\
-\}\
-\
-function battleAction(action)\{\
-  const b = game.battle;\
-  if (!b) return;\
-\
-  if (action==='fight') b.phase='moves';\
-\
-  else if (action==='bag')\{\
-    showDialogOptions('\'bfQu\'e9 objeto usar?', ['Poci\'f3n','Pok\'e9 Ball','Cancelar'], (sel)=>\{\
-      if (sel===0 && (game.items.potion||0)>0)\{\
-        game.items.potion--;\
-        b.player.hp = Math.min(b.player.maxHp, b.player.hp + 20);\
-        b.message = `$\{b.player.name\} recuper\'f3 PS!`;\
-        b.callback = ()=> enemyTurn();\
-      \} else if (sel===1 && (game.items.pokeball||0)>0 && b.type==='wild')\{\
-        game.items.pokeball--;\
-        const catchRate = Math.max(15, 80 - b.enemy.level);\
-        if (Math.random()*100 < catchRate)\{\
-          game.pokemon.push(\{...b.enemy\});\
-          endBattle(`\'a1Has capturado a $\{b.enemy.name\}!`);\
-        \} else \{\
-          b.message='\'a1Oh no! \'a1Se ha escapado!';\
-          b.callback=()=>enemyTurn();\
-        \}\
-      \}\
-      render();\
-    \});\
-  \}\
-\
-  else if (action==='pokemon')\{\
-    showDialog('Cambio de Pok\'e9mon (pendiente).');\
-  \}\
-\
-  else if (action==='run')\{\
-    if (b.type==='wild')\{\
-      if (Math.random()<0.75) endBattle('\'a1Has escapado!');\
-      else \{ b.message='\'a1No puedes escapar!'; b.callback=()=>enemyTurn(); \}\
-    \} else showDialog('\'a1No puedes huir de un entrenador!');\
-  \}\
-\
-  render();\
-\}\
-\
-function useMove(index)\{\
-  const b = game.battle;\
-  if (!b) return;\
-\
-  const moveName = b.player.moves[index];\
-  const md = MOVES_DATA[moveName];\
-  if (!md)\{ b.message=`$\{b.player.name\} us\'f3 $\{moveName\}!`; b.callback=()=>enemyTurn(); b.phase='action'; return render(); \}\
-\
-  const eff = getTypeEffectiveness(md.type, b.enemy.type);\
-  let dmg = Math.floor(((2*b.player.level/5+2)*md.power*b.player.atk/b.enemy.def/50)+2);\
-  dmg = Math.max(1, Math.floor(dmg*eff));\
-\
-  b.enemy.hp = Math.max(0, b.enemy.hp - dmg);\
-\
-  let msg = `$\{b.player.name\} us\'f3 $\{moveName\}!`;\
-  if (eff>1) msg += `\\n\'a1Es s\'faper efectivo!`;\
-  else if (eff<1 && eff>0) msg += `\\nNo es muy efectivo...`;\
-  else if (eff===0) msg += `\\nNo afecta...`;\
-\
-  b.message = msg;\
-  b.phase='action';\
-  b.callback = ()=>\{\
-    if (b.enemy.hp<=0) endBattle(`\'a1$\{b.enemy.name\} derrotado!`);\
-    else enemyTurn();\
-  \};\
-  render();\
-\}\
-\
-function enemyTurn()\{\
-  const b = game.battle;\
-  if (!b) return;\
-\
-  const moves = b.enemy.moves || ['Placaje'];\
-  const moveName = moves[Math.floor(Math.random()*moves.length)];\
-  const md = MOVES_DATA[moveName] || \{ power:40, type:'Normal' \};\
-\
-  const eff = getTypeEffectiveness(md.type, b.player.type);\
-  let dmg = Math.floor(((2*b.enemy.level/5+2)*md.power*b.enemy.atk/b.player.def/50)+2);\
-  dmg = Math.max(1, Math.floor(dmg*eff));\
-\
-  b.player.hp = Math.max(0, b.player.hp - dmg);\
-\
-  let msg = `$\{b.enemy.name\} us\'f3 $\{moveName\}!`;\
-  if (eff>1) msg += `\\n\'a1Es s\'faper efectivo!`;\
-  else if (eff<1 && eff>0) msg += `\\nNo es muy efectivo...`;\
-\
-  b.message = msg;\
-  b.callback = ()=>\{\
-    if (b.player.hp<=0)\{\
-      // \'93survive\'94 simple\
-      game.pokemon[0].hp = 1;\
-      endBattle('\'a1Tu Pok\'e9mon se ha debilitado!');\
-    \} else \{\
-      b.message=null;\
-      render();\
-    \}\
-  \};\
-  render();\
-\}\
-\
-function endBattle(msg)\{\
-  game.battle.message = msg;\
-  game.battle.callback = ()=>\{\
-    // sync hp\
-    if (game.pokemon[0]) game.pokemon[0].hp = Math.max(1, Math.min(game.pokemon[0].maxHp, game.battle.player.hp));\
-    game.state='world';\
-    game.battle=null;\
-    document.getElementById('ui-layer').innerHTML='';\
-    render();\
-  \};\
-  render();\
-\}\
-\
-/* =========================\
-   INIT\
-========================= */\
-function init()\{\
-  createGBATileset();\
-  createPlayerSprite();\
-  createNPCSprites();\
-  generateMapData();\
-\
-  // spawn\
-  const spawn = MAPS[game.map]?.spawn;\
-  if (spawn)\{ game.player.x=spawn.x; game.player.y=spawn.y; \}\
-\
-  const save = localStorage.getItem('pokemon_comarca_save');\
-  if (save)\{\
-    try\{\
-      const data = JSON.parse(save);\
-      Object.assign(game, data);\
-      game.dialog=null; game.battle=null; game.menu=null;\
-    \} catch(e)\{\}\
-  \}\
-\
-  document.addEventListener('keydown', (e)=>\{\
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','x','Escape'].includes(e.key))\{\
-      e.preventDefault();\
-      handleKey(e.key);\
-    \}\
-  \});\
-\
-  function loop()\{\
-    render();\
-    requestAnimationFrame(loop);\
-  \}\
-  loop();\
-\}\
-\
-init();\
-</script>\
-</body>\
-</html>}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pokémon Comarca de Cariñena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body{
+      background: radial-gradient(circle at top, #4d4d4d, #2a2a2a);
+      display:flex; justify-content:center; align-items:center;
+      min-height:100vh;
+      font-family:'Press Start 2P', monospace;
+    }
+
+    #gba-frame{
+      padding:20px;
+      background: linear-gradient(145deg, #5b5b5b, #1f1f1f);
+      border-radius:24px;
+      box-shadow:0 20px 40px rgba(0,0,0,.5), inset 0 0 0 4px #2f2f2f;
+    }
+
+    #game-container{
+      position:relative;
+      background:#101018;
+      border-radius:12px;
+      overflow:hidden;
+      border:6px solid #1c1c1c;
+      box-shadow: inset 0 0 0 3px #3a3a3a;
+    }
+
+    #game-canvas{
+      display:block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    #ui-layer{
+      position:absolute;
+      top:0; left:0;
+      width:100%; height:100%;
+      pointer-events:none;
+    }
+    #ui-layer > * { pointer-events:auto; }
+
+    .textbox, .menu-box, .battle-ui{
+      background:#f8f8f8;
+      border:4px solid #1f2a44;
+      border-radius:6px;
+      box-shadow: inset 0 0 0 2px #98b0c8, inset -4px -4px 0 #d8d8d8;
+    }
+
+    .textbox{
+      position:absolute;
+      bottom:8px; left:8px; right:8px;
+      padding:14px 16px;
+      line-height:1.8;
+    }
+
+    .battle-ui{
+      position:absolute;
+      bottom:0; left:0; right:0;
+      height:112px;
+      border-top:4px solid #1f2a44;
+      box-shadow: inset 0 0 0 2px #98b0c8;
+      padding:10px;
+    }
+
+    .battle-btn{
+      font-family:'Press Start 2P', monospace;
+      font-size:12px;
+      padding:12px 14px;
+      background:#f8f8f8;
+      border:3px solid #1f2a44;
+      border-radius:6px;
+      cursor:pointer;
+      box-shadow: inset 0 0 0 2px #98b0c8;
+    }
+    .battle-btn:hover{ background:#eef3f8; }
+    .battle-btn:active{ background:#d8e3f0; }
+
+    #touch-controls{
+      position:fixed;
+      bottom:20px;
+      left:50%;
+      transform:translateX(-50%);
+      display:none;
+      gap:8px;
+      z-index:100;
+    }
+    .touch-btn{
+      width:50px; height:50px;
+      background:rgba(255,255,255,0.9);
+      border:3px solid #333;
+      border-radius:50%;
+      font-size:20px;
+      cursor:pointer;
+      box-shadow:0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    @media (max-width:600px){
+      #touch-controls{ display:flex; }
+      #game-container{ transform: scale(0.7); transform-origin:center; }
+    }
+  </style>
+</head>
+<body>
+  <div id="gba-frame">
+    <div id="game-container">
+      <canvas id="game-canvas"></canvas>
+      <div id="ui-layer"></div>
+    </div>
+  </div>
+
+  <div id="touch-controls">
+    <button class="touch-btn" onclick="handleKey('ArrowUp')">↑</button>
+    <button class="touch-btn" onclick="handleKey('ArrowLeft')">←</button>
+    <button class="touch-btn" onclick="handleKey('ArrowDown')">↓</button>
+    <button class="touch-btn" onclick="handleKey('ArrowRight')">→</button>
+    <button class="touch-btn" onclick="handleKey(' ')">A</button>
+    <button class="touch-btn" onclick="handleKey('x')">B</button>
+  </div>
+
+<script>
+/* =========================
+   CONFIG GBA / CANVAS
+========================= */
+const TILE = 16;
+const SCALE = 3;
+const COLS = 15;
+const ROWS = 10;
+const WIDTH = COLS * TILE * SCALE;
+const HEIGHT = ROWS * TILE * SCALE;
+
+const canvas = document.getElementById('game-canvas');
+canvas.width = WIDTH;
+canvas.height = HEIGHT;
+
+const gameContainer = document.getElementById('game-container');
+gameContainer.style.width = WIDTH + 'px';
+gameContainer.style.height = HEIGHT + 'px';
+
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+/* =========================
+   PALETA GBA (COHERENTE)
+========================= */
+const PAL = {
+  grass_light: '#9BE070',
+  grass_mid:   '#6EC44A',
+  grass_dark:  '#3E9A32',
+  grass_ink:   '#1E5A25',
+
+  tall_light: '#8EEA66',
+  tall_mid:   '#5FCB44',
+  tall_dark:  '#2D8F2A',
+
+  path_light: '#E6D08A',
+  path_mid:   '#CDAA63',
+  path_dark:  '#A68444',
+  path_edge:  '#7A5E2E',
+
+  tree_light: '#4FC05A',
+  tree_mid:   '#2F8E3A',
+  tree_dark:  '#1F6A2B',
+  tree_trunk: '#B07A32',
+  tree_trunk_dark:'#7B4F1E',
+
+  water_light:'#7FC8FF',
+  water_mid:  '#3F8CF2',
+  water_dark: '#1E5FBF',
+  water_ink:  '#133A86',
+
+  wall_light: '#FFF2D8',
+  wall_mid:   '#E9D6B9',
+  wall_dark:  '#CBB38E',
+  wall_shadow:'#9E8A67',
+
+  window_light:'#BFE9FF',
+  window_dark: '#2A66A8',
+
+  roof_red:      '#E86860',
+  roof_red_light:'#FF9A90',
+  roof_red_dark: '#B54842',
+
+  roof_blue:      '#5A90E8',
+  roof_blue_light:'#90BEFF',
+  roof_blue_dark: '#3B66B8',
+
+  roof_green:      '#5FBF6A',
+  roof_green_light:'#92E59A',
+  roof_green_dark: '#3A8D44',
+
+  door_wood:'#9A5A24',
+  door_dark:'#3A2416',
+
+  ui_outer:'#1F2A44',
+  ui_inner:'#98B0C8',
+};
+
+/* =========================
+   HASH DETERMINISTA (NO PARPADEO)
+========================= */
+function h2(x, y, seed = 1) {
+  let n = (x * 374761393 + y * 668265263 + seed * 2147483647) >>> 0;
+  n = (n ^ (n >>> 13)) >>> 0;
+  n = Math.imul(n, 1274126177) >>> 0;
+  n = (n ^ (n >>> 16)) >>> 0;
+  return n / 4294967295;
+}
+
+/* =========================
+   TILES
+========================= */
+const T = {
+  GRASS: 0, GRASS2: 1, TALLGRASS: 2, PATH: 3,
+  TREE_TL: 10, TREE_TR: 11, TREE_BL: 12, TREE_BR: 13,
+  WATER: 20,
+  HOUSE_ROOF_L: 30, HOUSE_ROOF_M: 31, HOUSE_ROOF_R: 32,
+  HOUSE_WALL_L: 33, HOUSE_WALL_M: 34, HOUSE_WALL_R: 35,
+  HOUSE_DOOR: 36,
+  PC_ROOF_L: 40, PC_ROOF_M: 41, PC_ROOF_R: 42,
+  PC_WALL_L: 43, PC_WALL_M: 44, PC_WALL_R: 45,
+  PC_DOOR: 46,
+  MART_ROOF_L: 50, MART_ROOF_M: 51, MART_ROOF_R: 52,
+  MART_WALL_L: 53, MART_WALL_M: 54, MART_WALL_R: 55,
+  MART_DOOR: 56,
+  GYM_ROOF_L: 60, GYM_ROOF_M: 61, GYM_ROOF_R: 62,
+  GYM_WALL_L: 63, GYM_WALL_M: 64, GYM_WALL_R: 65,
+  GYM_DOOR: 66,
+  FENCE_H: 70, FENCE_V: 71, SIGN: 72, FLOWER_R: 73, FLOWER_Y: 74,
+  ROCK: 81, VINEYARD: 82
+};
+
+const SOLID_TILES = new Set([
+  T.TREE_TL, T.TREE_TR, T.TREE_BL, T.TREE_BR,
+  T.WATER,
+  T.HOUSE_ROOF_L, T.HOUSE_ROOF_M, T.HOUSE_ROOF_R, T.HOUSE_WALL_L, T.HOUSE_WALL_R,
+  T.PC_ROOF_L, T.PC_ROOF_M, T.PC_ROOF_R, T.PC_WALL_L, T.PC_WALL_R,
+  T.MART_ROOF_L, T.MART_ROOF_M, T.MART_ROOF_R, T.MART_WALL_L, T.MART_WALL_R,
+  T.GYM_ROOF_L, T.GYM_ROOF_M, T.GYM_ROOF_R, T.GYM_WALL_L, T.GYM_WALL_R,
+  T.FENCE_H, T.FENCE_V, T.ROCK, T.SIGN
+]);
+
+/* =========================
+   DATOS
+========================= */
+const TYPE_COLORS = {
+  'Normal': '#a8a878', 'Fuego': '#f08030', 'Agua': '#6890f0', 'Planta': '#78c850',
+  'Eléctrico': '#f8d030', 'Volador': '#a890f0', 'Veneno': '#a040a0', 'Roca': '#b8a038',
+  'Psíquico': '#f85888', 'Fantasma': '#705898', 'Siniestro': '#705848'
+};
+
+const TYPE_CHART = {
+  'Normal': { 'Roca': 0.5, 'Fantasma': 0 },
+  'Fuego': { 'Planta': 2, 'Agua': 0.5, 'Fuego': 0.5, 'Roca': 0.5 },
+  'Agua': { 'Fuego': 2, 'Planta': 0.5, 'Agua': 0.5, 'Roca': 2 },
+  'Planta': { 'Agua': 2, 'Fuego': 0.5, 'Planta': 0.5, 'Roca': 2, 'Volador': 0.5 },
+  'Eléctrico': { 'Agua': 2, 'Volador': 2, 'Planta': 0.5, 'Eléctrico': 0.5, 'Roca': 0 },
+  'Volador': { 'Planta': 2, 'Eléctrico': 0.5, 'Roca': 0.5 },
+  'Roca': { 'Fuego': 2, 'Volador': 2 },
+  'Veneno': { 'Planta': 2, 'Roca': 0.5, 'Fantasma': 0.5 },
+  'Psíquico': { 'Veneno': 2, 'Psíquico': 0.5 },
+  'Fantasma': { 'Normal': 0, 'Psíquico': 2, 'Fantasma': 2 },
+  'Siniestro': { 'Psíquico': 2, 'Fantasma': 2, 'Siniestro': 0.5 }
+};
+
+const MOVES_DATA = {
+  'Placaje': { power: 40, type: 'Normal', acc: 100 },
+  'Ascuas': { power: 40, type: 'Fuego', acc: 100 },
+  'Burbuja': { power: 40, type: 'Agua', acc: 100 },
+  'Látigo Cepa': { power: 45, type: 'Planta', acc: 100 },
+};
+
+const POKEMON_DATA = {
+  1: { name: 'Bulbasaur', type: 'Planta', hp: 45, atk: 49, def: 49, spd: 45, moves: ['Placaje', 'Látigo Cepa'] },
+  4: { name: 'Charmander', type: 'Fuego', hp: 39, atk: 52, def: 43, spd: 65, moves: ['Placaje', 'Ascuas'] },
+  7: { name: 'Squirtle', type: 'Agua', hp: 44, atk: 48, def: 65, spd: 43, moves: ['Placaje', 'Burbuja'] },
+  16:{ name:'Pidgey', type:'Volador', hp:40, atk:45, def:40, spd:56, moves:['Placaje'] }
+};
+
+const ITEMS = {
+  pokeball: { name: 'Poké Ball', price: 200, desc: 'Captura Pokémon salvajes' },
+  potion: { name: 'Poción', price: 300, desc: 'Restaura 20 PS' }
+};
+
+const MAPS = {
+  encinacorba: {
+    name: 'Encinacorba',
+    width: 25, height: 20,
+    encounters: [],
+    data: null,
+    npcs: [
+      { x: 8, y: 10, name: 'Prof. Garnacha', sprite: 'professor',
+        dialog: ['¡Bienvenido al mundo Pokémon!', 'Soy el Profesor Garnacha.', '¡Elige tu compañero!'],
+        action: 'starter' }
+    ],
+    buildings: [
+      { x: 4, y: 7, type: 'house', name: 'Tu Casa' },
+      { x: 10, y: 7, type: 'pokecenter', action: 'heal' },
+      { x: 16, y: 7, type: 'mart', action: 'shop', items: ['pokeball','potion'] }
+    ],
+    exits: [
+      { x: 24, y: 10, toMap: 'ruta_vino_1', toX: 1, toY: 15 },
+      { x: 24, y: 11, toMap: 'ruta_vino_1', toX: 1, toY: 16 }
+    ],
+    spawn: { x: 12, y: 12 }
+  },
+  ruta_vino_1: {
+    name: 'Ruta del Vino 1',
+    width: 30, height: 25,
+    encounters: [{ id: 16, rate: 100, minLv: 2, maxLv: 4 }],
+    data: null,
+    npcs: [],
+    buildings: [],
+    exits: [
+      { x: 0, y: 15, toMap: 'encinacorba', toX: 23, toY: 10 },
+      { x: 0, y: 16, toMap: 'encinacorba', toX: 23, toY: 11 },
+    ],
+    spawn: { x: 2, y: 15 }
+  }
+};
+
+/* =========================
+   MAP GENERATION (DETERMINISTA)
+========================= */
+function generateMapData() {
+  MAPS.encinacorba.data = generateTownMap(25, 20, [
+    { x: 4, y: 6, w: 4, h: 3, type: 'house' },
+    { x: 10, y: 6, w: 4, h: 3, type: 'pokecenter' },
+    { x: 16, y: 6, w: 4, h: 3, type: 'mart' }
+  ], { exitRight: true });
+
+  MAPS.ruta_vino_1.data = generateRouteMap(30, 25, 0.35);
+}
+
+function generateTownMap(w, h, buildings, opts = {}) {
+  const map = Array.from({length:h}, (_,y)=> Array.from({length:w}, (_,x)=>{
+    if (y < 2 || y >= h-2 || x < 2 || x >= w-2) {
+      return ((x+y)&1) ? T.TREE_BR : T.TREE_TL;
+    }
+    const mid = Math.floor(h/2);
+    if (y >= mid-1 && y <= mid+1) return T.PATH;
+
+    const r = h2(x,y,101);
+    return (r < 0.28) ? T.GRASS2 : T.GRASS;
+  }));
+
+  buildings.forEach(b=>{
+    placeBuilding(map, b.x, b.y, b.type);
+    const mid = Math.floor(h/2);
+    for (let py = b.y + 3; py <= mid; py++) {
+      map[py][b.x + 1] = T.PATH;
+      map[py][b.x + 2] = T.PATH;
+    }
+  });
+
+  const mid = Math.floor(h/2);
+  if (opts.exitLeft) {
+    for (let y=mid-1;y<=mid+1;y++){ map[y][0]=T.PATH; map[y][1]=T.PATH; }
+  }
+  if (opts.exitRight) {
+    for (let y=mid-1;y<=mid+1;y++){ map[y][w-1]=T.PATH; map[y][w-2]=T.PATH; }
+  }
+
+  // decoraciones deterministas
+  for (let i=0;i<10;i++){
+    const fx = 3 + Math.floor(h2(i,7,303)*(w-6));
+    const fy = 3 + Math.floor(h2(i,9,304)*(h-6));
+    if (map[fy][fx] === T.GRASS || map[fy][fx] === T.GRASS2) {
+      map[fy][fx] = (h2(fx,fy,777) < 0.5) ? T.FLOWER_R : T.FLOWER_Y;
+    }
+  }
+  return map;
+}
+
+function generateRouteMap(w, h, grassDensity) {
+  const pathY = Math.floor(h/2);
+  const map = Array.from({length:h}, (_,y)=> Array.from({length:w}, (_,x)=>{
+    if (y < 2 || y >= h-2) return ((x+y)&1) ? T.TREE_BR : T.TREE_TL;
+    if (Math.abs(y - pathY) <= 1) return T.PATH;
+
+    const rG = h2(x,y,203);
+    if (rG < grassDensity) return T.TALLGRASS;
+
+    const rT = h2(x,y,204);
+    if (rT < 0.06 && x > 3 && x < w-3) return T.TREE_TL;
+
+    const r = h2(x,y,205);
+    return (r < 0.28) ? T.GRASS2 : T.GRASS;
+  }));
+
+  for (let y=pathY-1;y<=pathY+1;y++){
+    map[y][0]=T.PATH; map[y][1]=T.PATH;
+    map[y][w-1]=T.PATH; map[y][w-2]=T.PATH;
+  }
+  return map;
+}
+
+function placeBuilding(map, x, y, type) {
+  let roofL, roofM, roofR, wallL, wallM, wallR, door;
+  switch(type) {
+    case 'house':
+      roofL=T.HOUSE_ROOF_L; roofM=T.HOUSE_ROOF_M; roofR=T.HOUSE_ROOF_R;
+      wallL=T.HOUSE_WALL_L; wallM=T.HOUSE_WALL_M; wallR=T.HOUSE_WALL_R; door=T.HOUSE_DOOR;
+      break;
+    case 'pokecenter':
+      roofL=T.PC_ROOF_L; roofM=T.PC_ROOF_M; roofR=T.PC_ROOF_R;
+      wallL=T.PC_WALL_L; wallM=T.PC_WALL_M; wallR=T.PC_WALL_R; door=T.PC_DOOR;
+      break;
+    case 'mart':
+      roofL=T.MART_ROOF_L; roofM=T.MART_ROOF_M; roofR=T.MART_ROOF_R;
+      wallL=T.MART_WALL_L; wallM=T.MART_WALL_M; wallR=T.MART_WALL_R; door=T.MART_DOOR;
+      break;
+    case 'gym':
+      roofL=T.GYM_ROOF_L; roofM=T.GYM_ROOF_M; roofR=T.GYM_ROOF_R;
+      wallL=T.GYM_WALL_L; wallM=T.GYM_WALL_M; wallR=T.GYM_WALL_R; door=T.GYM_DOOR;
+      break;
+  }
+  // techo
+  map[y][x]=roofL;
+  map[y][x+1]=roofM;
+  map[y][x+2]=roofM;
+  map[y][x+3]=roofR;
+  // pared
+  map[y+1][x]=wallL;
+  map[y+1][x+1]=wallM;
+  map[y+1][x+2]=wallM;
+  map[y+1][x+3]=wallR;
+  // pared inferior con puerta
+  map[y+2][x]=wallL;
+  map[y+2][x+1]=door;
+  map[y+2][x+2]=door;
+  map[y+2][x+3]=wallR;
+}
+
+/* =========================
+   TILESET PIXEL PERFECT (SIN ARC/ELLIPSE)
+========================= */
+let tilesetCanvas = null;
+
+function drawBuilding(c, x, y, roofMain, roofLight, roofDark) {
+  const fill = (xx,yy,w,h,col)=>{ c.fillStyle=col; c.fillRect(xx,yy,w,h); };
+
+  // 4 tiles ancho (64) x 3 tiles alto (48)
+  // Roof row
+  for (let i=0;i<4;i++){
+    const tx = x + i*16;
+    fill(tx, y, 16, 16, roofMain);
+    fill(tx, y, 16, 3, roofDark);
+    fill(tx+2, y+3, 12, 3, roofLight);
+    // "tejas" pixel
+    for (let r=0;r<3;r++){
+      c.fillStyle = roofDark;
+      c.fillRect(tx + (r&1?8:0), y + 5 + r*4, 8, 1);
+    }
+  }
+
+  // Wall rows (2)
+  for (let row=0; row<2; row++){
+    for (let i=0;i<4;i++){
+      const tx = x + i*16;
+      const ty = y + 16 + row*16;
+      fill(tx,ty,16,16,PAL.wall_mid);
+      fill(tx,ty,16,2,PAL.wall_light);
+      fill(tx,ty+14,16,2,PAL.wall_shadow);
+
+      // ventana arriba
+      if (row===0 && (i===1||i===2)){
+        fill(tx+4,ty+4,8,8,PAL.window_dark);
+        fill(tx+5,ty+5,6,6,PAL.window_light);
+        fill(tx+8,ty+4,1,8,PAL.wall_dark);
+        fill(tx+4,ty+8,8,1,PAL.wall_dark);
+      }
+      // puerta abajo
+      if (row===1 && (i===1||i===2)){
+        fill(tx+3,ty+2,10,14,PAL.door_dark);
+        fill(tx+4,ty+3,8,13,PAL.door_wood);
+        fill(tx+10,ty+9,2,2,'#F8D030'); // picaporte
+      }
+    }
+  }
+}
+
+function createGBATileset() {
+  const ts = document.createElement('canvas');
+  ts.width = 256; ts.height = 256;
+  const c = ts.getContext('2d');
+  c.imageSmoothingEnabled = false;
+
+  const px = (x,y,col)=>{ c.fillStyle=col; c.fillRect(x,y,1,1); };
+  const fill = (x,y,w,h,col)=>{ c.fillStyle=col; c.fillRect(x,y,w,h); };
+
+  // GRASS (0,0)
+  fill(0,0,16,16,PAL.grass_mid);
+  for (let y=0;y<16;y++){
+    for (let x=0;x<16;x++){
+      const r = h2(x,y,11);
+      if (r < 0.12) px(x,y,PAL.grass_light);
+      else if (r < 0.18) px(x,y,PAL.grass_dark);
+    }
+  }
+
+  // GRASS2 (16,0)
+  fill(16,0,16,16,PAL.grass_mid);
+  for (let y=0;y<16;y++){
+    for (let x=0;x<16;x++){
+      const r = h2(16+x,y,19);
+      if (r < 0.10) px(16+x,y,PAL.grass_light);
+      else if (r < 0.16) px(16+x,y,PAL.grass_dark);
+    }
+  }
+
+  // TALLGRASS (32,0)
+  fill(32,0,16,16,PAL.tall_mid);
+  for (let x=0; x<16; x+=3) {
+    fill(32+x, 3, 2, 12, PAL.tall_dark);
+    fill(32+x+1, 4, 1, 11, PAL.tall_mid);
+    px(32+x,2,PAL.tall_light); px(32+x+1,1,PAL.tall_light);
+  }
+
+  // PATH (48,0)
+  fill(48,0,16,16,PAL.path_mid);
+  for (let y=0;y<16;y++){
+    for (let x=0;x<16;x++){
+      const r = h2(48+x,y,29);
+      if (r < 0.10) px(48+x,y,PAL.path_light);
+      else if (r < 0.18) px(48+x,y,PAL.path_dark);
+    }
+  }
+
+  // WATER frame A (64,0)
+  fill(64,0,16,16,PAL.water_mid);
+  fill(66,4,4,1,PAL.water_light);
+  fill(72,8,5,1,PAL.water_light);
+  fill(68,6,3,1,PAL.water_dark);
+  fill(74,10,4,1,PAL.water_dark);
+
+  // WATER frame B (80,0)
+  fill(80,0,16,16,PAL.water_mid);
+  fill(82,5,4,1,PAL.water_light);
+  fill(88,9,5,1,PAL.water_light);
+  fill(84,7,3,1,PAL.water_dark);
+  fill(90,11,4,1,PAL.water_dark);
+
+  // FLOWER_R (96,0)
+  fill(96,0,16,16,PAL.grass_mid);
+  fill(100,6,4,4,'#E85050'); fill(104,10,3,3,'#E85050');
+  fill(101,7,2,2,'#F8D030'); fill(105,11,1,1,'#F8D030');
+
+  // FLOWER_Y (112,0)
+  fill(112,0,16,16,PAL.grass_mid);
+  fill(116,6,4,4,'#F8D030'); fill(120,10,3,3,'#F8D030');
+  fill(117,7,2,2,'#F89030'); fill(121,11,1,1,'#F89030');
+
+  // SIGN (128,0)
+  fill(128,0,16,16,PAL.grass_mid);
+  fill(135,8,2,8,PAL.tree_trunk);
+  fill(132,4,10,6,PAL.tree_trunk_dark);
+  fill(133,5,8,4,'#F8F8E8');
+
+  // TREE 2x2 (0,16)(16,16)(0,32)(16,32)
+  // TL canopy
+  fill(0,16,16,16,PAL.tree_dark);
+  fill(2,18,12,10,PAL.tree_mid);
+  fill(4,20,8,6,PAL.tree_light);
+  // TR canopy
+  fill(16,16,16,16,PAL.tree_dark);
+  fill(18,18,12,10,PAL.tree_mid);
+  fill(20,20,8,6,PAL.tree_light);
+  // BL trunk
+  fill(0,32,16,16,PAL.tree_mid);
+  fill(5,36,6,10,PAL.tree_trunk);
+  fill(5,36,2,10,PAL.tree_trunk_dark);
+  // BR trunk
+  fill(16,32,16,16,PAL.tree_mid);
+  fill(21,36,6,10,PAL.tree_trunk);
+  fill(21,36,2,10,PAL.tree_trunk_dark);
+
+  // Buildings blocks
+  drawBuilding(c, 0, 64, PAL.roof_red, PAL.roof_red_light, PAL.roof_red_dark);
+  drawBuilding(c, 64, 64, PAL.roof_red, PAL.roof_red_light, PAL.roof_red_dark);
+  drawBuilding(c, 128, 64, PAL.roof_blue, PAL.roof_blue_light, PAL.roof_blue_dark);
+  drawBuilding(c, 0, 128, PAL.roof_green, PAL.roof_green_light, PAL.roof_green_dark);
+
+  tilesetCanvas = ts;
+  return ts;
+}
+
+/* =========================
+   SPRITES
+========================= */
+let playerCanvas = null;
+
+function createPlayerSprite() {
+  const ps = document.createElement('canvas');
+  ps.width = 64; ps.height = 64;
+  const c = ps.getContext('2d');
+  c.imageSmoothingEnabled = false;
+
+  const colors = {
+    skin: '#F8C8A0',
+    skin_dark: '#D8A078',
+    hair: '#402820',
+    shirt: '#E03030',
+    shirt_dark: '#B02020',
+    pants: '#3058A8',
+    pants_dark: '#204080',
+    shoe: '#282828'
+  };
+
+  function shadow(ox, oy){
+    // shadow pixel (sin ellipse)
+    c.fillStyle = 'rgba(0,0,0,0.20)';
+    c.fillRect(ox+3, oy+14, 10, 2);
+    c.fillRect(ox+4, oy+13, 8, 1);
+  }
+
+  for (let dir=0; dir<4; dir++){
+    for (let frame=0; frame<2; frame++){
+      const idx = dir*2 + frame;
+      const ox = (idx % 4) * 16;
+      const oy = Math.floor(idx / 4) * 16;
+
+      shadow(ox,oy);
+
+      const legOffset = frame === 1 ? 1 : 0;
+      c.fillStyle = colors.pants;
+      c.fillRect(ox+5, oy+10-legOffset, 3, 4+legOffset);
+      c.fillRect(ox+8, oy+10+legOffset, 3, 4-legOffset);
+      c.fillStyle = colors.pants_dark;
+      c.fillRect(ox+5, oy+10-legOffset, 1, 4+legOffset);
+      c.fillRect(ox+8, oy+10+legOffset, 1, 4-legOffset);
+
+      c.fillStyle = colors.shoe;
+      c.fillRect(ox+5, oy+13, 3, 2);
+      c.fillRect(ox+8, oy+13, 3, 2);
+
+      c.fillStyle = colors.shirt;
+      c.fillRect(ox+4, oy+6, 8, 5);
+      c.fillStyle = colors.shirt_dark;
+      c.fillRect(ox+4, oy+6, 2, 5);
+      c.fillRect(ox+10, oy+6, 2, 5);
+
+      c.fillStyle = colors.shirt;
+      c.fillRect(ox+2, oy+6, 2, 4);
+      c.fillRect(ox+12, oy+6, 2, 4);
+      c.fillStyle = colors.skin;
+      c.fillRect(ox+2, oy+10, 2, 1);
+      c.fillRect(ox+12, oy+10, 2, 1);
+
+      c.fillStyle = colors.skin;
+      c.fillRect(ox+5, oy+2, 6, 5);
+
+      c.fillStyle = colors.hair;
+      c.fillRect(ox+4, oy, 8, 3);
+      c.fillStyle = colors.shirt;
+      c.fillRect(ox+3, oy+1, 10, 2);
+      c.fillStyle = '#FFF';
+      c.fillRect(ox+5, oy+2, 2, 1);
+
+      c.fillStyle = '#000';
+      if (dir === 0){
+        c.fillRect(ox+6, oy+4, 1, 2);
+        c.fillRect(ox+9, oy+4, 1, 2);
+      } else if (dir === 2){
+        c.fillRect(ox+6, oy+4, 1, 2);
+      } else if (dir === 3){
+        c.fillRect(ox+9, oy+4, 1, 2);
+      }
+    }
+  }
+
+  playerCanvas = ps;
+  return ps;
+}
+
+let npcSprites = {};
+function createNPCSprites(){
+  const types = {
+    professor: { shirt: '#F0F0F0', pants:'#484848', hair:'#808080' },
+    trainer:   { shirt: '#4169E1', pants:'#2F2F2F', hair:'#483818' },
+    oldman:    { shirt: '#8B4513', pants:'#483818', hair:'#C0C0C0' },
+    mom:       { shirt: '#FF69B4', pants:'#4A4A4A', hair:'#8B4513' },
+    gymleader: { shirt: '#228B22', pants:'#2F2F2F', hair:'#000000' },
+    champion:  { shirt: '#8B0000', pants:'#1A1A1A', hair:'#FFD700' }
+  };
+  for (const [name, colors] of Object.entries(types)){
+    const c = document.createElement('canvas');
+    c.width=16; c.height=16;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+
+    g.fillStyle = colors.shirt; g.fillRect(4,6,8,5);
+    g.fillStyle = colors.pants; g.fillRect(5,11,3,4); g.fillRect(8,11,3,4);
+    g.fillStyle = '#F8C8A0'; g.fillRect(5,2,6,5);
+    g.fillStyle = colors.hair; g.fillRect(4,1,8,3);
+
+    g.fillStyle='#000'; g.fillRect(6,4,1,1); g.fillRect(9,4,1,1);
+    npcSprites[name]=c;
+  }
+}
+
+/* =========================
+   POKEMON SPRITES
+========================= */
+const pokemonSpriteCache = {};
+const POKE_SPRITE_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+function getPokemonSprite(id, back=false){
+  const key = `${id}_${back?'back':'front'}`;
+  if (!pokemonSpriteCache[key]){
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = `${POKE_SPRITE_BASE}${back?'/back':''}/${id}.png`;
+    pokemonSpriteCache[key]=img;
+  }
+  return pokemonSpriteCache[key];
+}
+
+/* =========================
+   GAME STATE
+========================= */
+let game = {
+  state:'title',
+  map:'encinacorba',
+  player:{ x:12, y:12, dir:0, moving:false },
+  pokemon:[],
+  money:3000,
+  items:{ pokeball:5, potion:3 },
+  badges:[],
+  defeatedTrainers:[],
+  starterChosen:false,
+  starterIndex:0,
+  dialog:null,
+  battle:null,
+  menu:null,
+  animFrame:0
+};
+
+/* =========================
+   RENDER
+========================= */
+function drawWindowFrame(x, y, w, h){
+  ctx.fillStyle = '#F8F8F8';
+  ctx.fillRect(x,y,w,h);
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = PAL.ui_outer;
+  ctx.strokeRect(x,y,w,h);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = PAL.ui_inner;
+  ctx.strokeRect(x+4,y+4,w-8,h-8);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  ctx.fillRect(x+6, y+h-10, w-12, 4);
+}
+
+function render(){
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+  game.animFrame++;
+
+  if (game.state==='title') return renderTitle();
+  if (game.state==='starter') return renderStarter();
+  if (game.state==='world') return renderWorld();
+  if (game.state==='battle') return renderBattle();
+  if (game.state==='menu') return renderMenu();
+}
+
+function renderTitle(){
+  const grad = ctx.createLinearGradient(0,0,0,HEIGHT);
+  grad.addColorStop(0,'#0a0a2e');
+  grad.addColorStop(1,'#2a1a3e');
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+  ctx.fillStyle='#f8d030';
+  ctx.font=`bold ${28}px "Press Start 2P"`;
+  ctx.textAlign='center';
+  ctx.strokeStyle='#b08000';
+  ctx.lineWidth=4;
+  ctx.strokeText('POKÉMON', WIDTH/2, 80);
+  ctx.fillText('POKÉMON', WIDTH/2, 80);
+
+  ctx.fillStyle='#f85888';
+  ctx.font=`${16}px "Press Start 2P"`;
+  ctx.fillText('COMARCA DE', WIDTH/2, 120);
+
+  ctx.fillStyle='#a83860';
+  ctx.font=`${20}px "Press Start 2P"`;
+  ctx.fillText('CARIÑENA', WIDTH/2, 155);
+
+  if (Math.floor(game.animFrame/30)%2===0){
+    ctx.fillStyle='#fff';
+    ctx.font=`${12}px "Press Start 2P"`;
+    ctx.fillText('PULSA ESPACIO', WIDTH/2, HEIGHT-60);
+  }
+}
+
+function renderStarter(){
+  ctx.fillStyle='#E8E0D0';
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+  ctx.fillStyle='#483018';
+  ctx.font=`${14}px "Press Start 2P"`;
+  ctx.textAlign='center';
+  ctx.fillText('¡Elige tu primer Pokémon!', WIDTH/2, 40);
+
+  const starters = [
+    {id:1, name:'Bulbasaur', type:'Planta'},
+    {id:4, name:'Charmander', type:'Fuego'},
+    {id:7, name:'Squirtle', type:'Agua'}
+  ];
+
+  const boxW=120, boxH=180;
+  const startX = (WIDTH - boxW*3 - 40)/2;
+
+  starters.forEach((s,i)=>{
+    const x = startX + i*(boxW+20);
+    const y = 70;
+    const selected = game.starterIndex===i;
+
+    ctx.fillStyle = selected ? (TYPE_COLORS[s.type]||'#fff') : '#fff';
+    ctx.fillRect(x,y,boxW,boxH);
+    ctx.strokeStyle='#483018';
+    ctx.lineWidth = selected?4:2;
+    ctx.strokeRect(x,y,boxW,boxH);
+
+    const sprite = getPokemonSprite(s.id);
+    if (sprite.complete) ctx.drawImage(sprite, x+12, y+15, 96, 96);
+
+    ctx.fillStyle = selected ? '#fff' : '#483018';
+    ctx.font=`${10}px "Press Start 2P"`;
+    ctx.fillText(s.name, x+boxW/2, y+130);
+
+    ctx.fillStyle = selected ? '#fff' : (TYPE_COLORS[s.type]||'#483018');
+    ctx.font=`${8}px "Press Start 2P"`;
+    ctx.fillText(s.type, x+boxW/2, y+150);
+
+    if (selected){
+      ctx.fillStyle='#f85888';
+      ctx.beginPath();
+      ctx.moveTo(x+boxW/2-8, y-15);
+      ctx.lineTo(x+boxW/2+8, y-15);
+      ctx.lineTo(x+boxW/2, y-5);
+      ctx.fill();
+    }
+  });
+
+  ctx.fillStyle='#483018';
+  ctx.font=`${10}px "Press Start 2P"`;
+  ctx.fillText('←  → elegir   ESPACIO confirmar', WIDTH/2, HEIGHT-30);
+}
+
+function drawTile(tile, dx, dy){
+  const ts = tilesetCanvas;
+  const s = TILE*SCALE;
+
+  let sx=0, sy=0;
+
+  switch(tile){
+    case T.GRASS: sx=0; sy=0; break;
+    case T.GRASS2: sx=16; sy=0; break;
+    case T.TALLGRASS: sx=32; sy=0; break;
+    case T.PATH: sx=48; sy=0; break;
+
+    case T.WATER:{
+      // agua animada A/B
+      const frame = (Math.floor(game.animFrame/18)%2);
+      sx = frame===0 ? 64 : 80;
+      sy = 0;
+      break;
+    }
+
+    case T.FLOWER_R: sx=96; sy=0; break;
+    case T.FLOWER_Y: sx=112; sy=0; break;
+    case T.SIGN: sx=128; sy=0; break;
+
+    case T.TREE_TL: sx=0; sy=16; break;
+    case T.TREE_TR: sx=16; sy=16; break;
+    case T.TREE_BL: sx=0; sy=32; break;
+    case T.TREE_BR: sx=16; sy=32; break;
+
+    // Casa (bloque 0,64)
+    case T.HOUSE_ROOF_L: sx=0; sy=64; break;
+    case T.HOUSE_ROOF_M: sx=16; sy=64; break;
+    case T.HOUSE_ROOF_R: sx=48; sy=64; break;
+    case T.HOUSE_WALL_L: sx=0; sy=80; break;
+    case T.HOUSE_WALL_M: sx=16; sy=80; break;
+    case T.HOUSE_WALL_R: sx=48; sy=80; break;
+    case T.HOUSE_DOOR: sx=32; sy=96; break;
+
+    // PC (64,64)
+    case T.PC_ROOF_L: sx=64; sy=64; break;
+    case T.PC_ROOF_M: sx=80; sy=64; break;
+    case T.PC_ROOF_R: sx=112; sy=64; break;
+    case T.PC_WALL_L: sx=64; sy=80; break;
+    case T.PC_WALL_M: sx=80; sy=80; break;
+    case T.PC_WALL_R: sx=112; sy=80; break;
+    case T.PC_DOOR: sx=96; sy=96; break;
+
+    // MART (128,64)
+    case T.MART_ROOF_L: sx=128; sy=64; break;
+    case T.MART_ROOF_M: sx=144; sy=64; break;
+    case T.MART_ROOF_R: sx=176; sy=64; break;
+    case T.MART_WALL_L: sx=128; sy=80; break;
+    case T.MART_WALL_M: sx=144; sy=80; break;
+    case T.MART_WALL_R: sx=176; sy=80; break;
+    case T.MART_DOOR: sx=160; sy=96; break;
+
+    // GYM (0,128)
+    case T.GYM_ROOF_L: sx=0; sy=128; break;
+    case T.GYM_ROOF_M: sx=16; sy=128; break;
+    case T.GYM_ROOF_R: sx=48; sy=128; break;
+    case T.GYM_WALL_L: sx=0; sy=144; break;
+    case T.GYM_WALL_M: sx=16; sy=144; break;
+    case T.GYM_WALL_R: sx=48; sy=144; break;
+    case T.GYM_DOOR: sx=32; sy=160; break;
+
+    default: sx=0; sy=0;
+  }
+
+  ctx.drawImage(ts, sx, sy, 16, 16, dx, dy, s, s);
+}
+
+function renderWorld(){
+  const map = MAPS[game.map];
+  if (!map?.data) return;
+
+  const camX = Math.max(0, Math.min(game.player.x - Math.floor(COLS/2), map.width - COLS));
+  const camY = Math.max(0, Math.min(game.player.y - Math.floor(ROWS/2), map.height - ROWS));
+
+  for (let y=0; y<ROWS+1; y++){
+    for (let x=0; x<COLS+1; x++){
+      const mx = camX + x;
+      const my = camY + y;
+      if (mx>=0 && mx<map.width && my>=0 && my<map.height){
+        drawTile(map.data[my][mx], x*TILE*SCALE, y*TILE*SCALE);
+      }
+    }
+  }
+
+  // NPCs
+  map.npcs?.forEach(npc=>{
+    const sx = (npc.x - camX)*TILE*SCALE;
+    const sy = (npc.y - camY)*TILE*SCALE;
+    if (sx>-TILE*SCALE && sx<WIDTH+TILE*SCALE && sy>-TILE*SCALE && sy<HEIGHT+TILE*SCALE){
+      const spr = npcSprites[npc.sprite] || npcSprites.trainer;
+      ctx.drawImage(spr, 0,0,16,16, sx, sy - 4*SCALE, TILE*SCALE, TILE*SCALE);
+    }
+  });
+
+  // Player
+  const px = (game.player.x - camX)*TILE*SCALE;
+  const py = (game.player.y - camY)*TILE*SCALE;
+  const frame = game.player.moving ? (Math.floor(game.animFrame/8)%2) : 0;
+  const srcX = ((game.player.dir*2 + frame) % 4)*16;
+  const srcY = Math.floor((game.player.dir*2 + frame)/4)*16;
+  ctx.drawImage(playerCanvas, srcX,srcY,16,16, px, py - 4*SCALE, TILE*SCALE, TILE*SCALE);
+
+  // Location
+  drawWindowFrame(4*SCALE, 4*SCALE, 170*SCALE, 24*SCALE);
+  ctx.fillStyle='#223050';
+  ctx.font=`${9*SCALE}px "Press Start 2P"`;
+  ctx.textAlign='left';
+  ctx.fillText(map.name, 12*SCALE, 20*SCALE);
+
+  // Money
+  ctx.textAlign='right';
+  ctx.font=`${10}px "Press Start 2P"`;
+  ctx.fillStyle='#fff';
+  ctx.fillText(`₧${game.money}`, WIDTH-10, 20);
+
+  if (game.dialog) renderDialog();
+}
+
+function renderDialog(){
+  const ui = document.getElementById('ui-layer');
+  const d = game.dialog;
+  ui.innerHTML = `
+    <div class="textbox">
+      <div style="font-size:${10}px; white-space:pre-line;">${d.text}</div>
+      ${d.options ? `
+        <div style="margin-top:12px; display:flex; gap:20px; flex-wrap:wrap;">
+          ${d.options.map((o,i)=>`
+            <span style="color:${d.selected===i?'#d64545':'#1e1e1e'}">
+              ${d.selected===i?'▶ ':'  '} ${o}
+            </span>
+          `).join('')}
+        </div>
+      ` : `<div style="margin-top:12px; color:#223050; font-size:10px;">▼</div>`}
+    </div>
+  `;
+}
+
+/* =========================
+   BATTLE
+========================= */
+function drawHPBar(x, y, w, hp, maxHp){
+  const pct = Math.max(0, Math.min(1, hp/maxHp));
+  const color = (pct>0.5) ? '#58b058' : (pct>0.2) ? '#f2c14e' : '#e05454';
+
+  ctx.fillStyle='#2a2a2a'; ctx.fillRect(x,y,w,10*SCALE);
+  ctx.fillStyle='#111826'; ctx.fillRect(x+2,y+2,w-4,6*SCALE);
+  ctx.fillStyle=color;     ctx.fillRect(x+2,y+2,(w-4)*pct,6*SCALE);
+
+  ctx.fillStyle='#000';
+  ctx.font=`${7*SCALE}px "Press Start 2P"`;
+  ctx.textAlign='left';
+  ctx.fillText('HP', x - 10, y + 8*SCALE);
+}
+
+function drawHPBox(x,y,w,poke, showNumbers){
+  drawWindowFrame(x,y,w,56*SCALE);
+  ctx.fillStyle='#000';
+  ctx.font=`${10*SCALE}px "Press Start 2P"`;
+  ctx.textAlign='left';
+  ctx.fillText(poke.name, x+10*SCALE, y+18*SCALE);
+  ctx.textAlign='right';
+  ctx.font=`${8*SCALE}px "Press Start 2P"`;
+  ctx.fillText(`Nv${poke.level}`, x+w-10*SCALE, y+18*SCALE);
+
+  // HP bar
+  drawHPBar(x+14*SCALE, y+26*SCALE, w-28*SCALE, poke.hp, poke.maxHp);
+
+  if (showNumbers){
+    ctx.textAlign='right';
+    ctx.fillStyle='#000';
+    ctx.font=`${8*SCALE}px "Press Start 2P"`;
+    ctx.fillText(`${poke.hp}/${poke.maxHp}`, x+w-10*SCALE, y+48*SCALE);
+  }
+}
+
+function renderBattle(){
+  const b = game.battle;
+  if (!b) return;
+
+  // Background
+  ctx.fillStyle='#88c8ff';
+  ctx.fillRect(0,0,WIDTH,HEIGHT*0.45);
+  ctx.fillStyle='#6bb347';
+  ctx.fillRect(0,HEIGHT*0.45,WIDTH,HEIGHT*0.25);
+
+  // Platforms
+  ctx.fillStyle='#5aa13b';
+  ctx.fillRect(WIDTH*0.60, HEIGHT*0.40, 160, 30);
+  ctx.fillRect(WIDTH*0.10, HEIGHT*0.67, 180, 36);
+  ctx.fillStyle='#3f7d2b';
+  ctx.fillRect(WIDTH*0.60, HEIGHT*0.40+24, 160, 6);
+  ctx.fillRect(WIDTH*0.10, HEIGHT*0.67+30, 180, 6);
+
+  // Enemy sprite
+  const enemySprite = getPokemonSprite(b.enemy.id,false);
+  if (enemySprite.complete){
+    ctx.drawImage(enemySprite, WIDTH*0.60, HEIGHT*0.08, 100, 100);
+  }
+
+  // Player back sprite
+  const playerSprite = getPokemonSprite(b.player.id,true);
+  if (playerSprite.complete){
+    ctx.drawImage(playerSprite, WIDTH*0.08, HEIGHT*0.32, 120, 120);
+  }
+
+  // HP Boxes
+  drawHPBox(8*SCALE, 14*SCALE, 190*SCALE, b.enemy, false);
+  drawHPBox(WIDTH - 210*SCALE, HEIGHT*0.50, 200*SCALE, b.player, true);
+
+  renderBattleUI();
+}
+
+function renderBattleUI(){
+  const b = game.battle;
+  const ui = document.getElementById('ui-layer');
+
+  if (b.message){
+    ui.innerHTML = `
+      <div class="battle-ui" style="display:flex; align-items:center;">
+        <div style="font-size:12px; white-space:pre-line;">${b.message}</div>
+      </div>
+    `;
+    return;
+  }
+
+  if (b.phase==='action'){
+    ui.innerHTML = `
+      <div class="battle-ui" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <button class="battle-btn" onclick="battleAction('fight')">LUCHAR</button>
+        <button class="battle-btn" onclick="battleAction('bag')">MOCHILA</button>
+        <button class="battle-btn" onclick="battleAction('pokemon')">POKÉMON</button>
+        <button class="battle-btn" onclick="battleAction('run')">HUIR</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (b.phase==='moves'){
+    const moves = b.player.moves || [];
+    ui.innerHTML = `
+      <div class="battle-ui" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        ${moves.map((m,i)=>{
+          const md = MOVES_DATA[m] || {type:'Normal'};
+          const tc = TYPE_COLORS[md.type] || '#ddd';
+          return `<button class="battle-btn" style="background:${tc}33;" onclick="useMove(${i})">${m}</button>`;
+        }).join('')}
+      </div>
+      <button class="battle-btn" style="position:absolute; bottom:125px; right:10px; padding:8px 12px;"
+        onclick="game.battle.phase='action'; game.battle.message=null; render();">← Volver</button>
+    `;
+  }
+}
+
+/* =========================
+   MENU
+========================= */
+function renderMenu(){
+  renderWorld();
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+  const menuX = WIDTH - 160*SCALE;
+  const menuY = 16*SCALE;
+  drawWindowFrame(menuX, menuY, 150*SCALE, 180*SCALE);
+
+  const items = ['POKÉMON', 'MOCHILA', 'MEDALLAS', 'GUARDAR', 'SALIR'];
+  ctx.font = `${11}px "Press Start 2P"`;
+  ctx.textAlign='left';
+
+  items.forEach((label,i)=>{
+    const yy = menuY + 30 + i*30;
+    if (game.menu.index===i){
+      ctx.fillStyle='#d64545';
+      ctx.fillText('▶ ', menuX + 10, yy);
+    }
+    ctx.fillStyle='#1e1e1e';
+    ctx.fillText(label, menuX + 30, yy);
+  });
+}
+
+/* =========================
+   INPUT + LOGIC
+========================= */
+function handleKey(key){
+  switch(game.state){
+    case 'title':
+      if (key===' ' || key==='Enter'){
+        game.state = game.starterChosen ? 'world' : 'starter';
+      }
+      break;
+
+    case 'starter':
+      if (key==='ArrowLeft') game.starterIndex = Math.max(0, game.starterIndex-1);
+      if (key==='ArrowRight') game.starterIndex = Math.min(2, game.starterIndex+1);
+      if (key===' ' || key==='Enter'){
+        const ids=[1,4,7];
+        const p = createPokemon(ids[game.starterIndex], 5);
+        game.pokemon=[p];
+        game.starterChosen=true;
+        game.state='world';
+        showDialog(`¡${p.name} se unió a tu equipo!`);
+      }
+      break;
+
+    case 'world':
+      if (game.dialog) {
+        handleDialogInput(key);
+      } else if (key==='x' || key==='Escape'){
+        game.state='menu';
+        game.menu={ index:0 };
+      } else if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)){
+        movePlayer(key);
+      } else if (key===' ' || key==='Enter'){
+        interact();
+      }
+      break;
+
+    case 'battle':
+      if (game.battle?.message && (key===' ' || key==='Enter')){
+        game.battle.message=null;
+        const cb = game.battle.callback;
+        game.battle.callback=null;
+        if (cb) cb();
+      }
+      break;
+
+    case 'menu':
+      if (key==='x' || key==='Escape'){
+        game.state='world';
+        game.menu=null;
+        document.getElementById('ui-layer').innerHTML='';
+      } else if (key==='ArrowUp'){
+        game.menu.index = Math.max(0, game.menu.index-1);
+      } else if (key==='ArrowDown'){
+        game.menu.index = Math.min(4, game.menu.index+1);
+      } else if (key===' ' || key==='Enter'){
+        executeMenu();
+      }
+      break;
+  }
+  render();
+}
+
+function handleDialogInput(key){
+  if (game.dialog.options){
+    if (key==='ArrowLeft') game.dialog.selected=Math.max(0, game.dialog.selected-1);
+    if (key==='ArrowRight') game.dialog.selected=Math.min(game.dialog.options.length-1, game.dialog.selected+1);
+    if (key===' ' || key==='Enter'){
+      const cb = game.dialog.callback;
+      const sel = game.dialog.selected;
+      closeDialog();
+      if (cb) cb(sel);
+    }
+  } else {
+    if (key===' ' || key==='Enter'){
+      const cb = game.dialog.callback;
+      closeDialog();
+      if (cb) cb();
+    }
+  }
+}
+
+function movePlayer(dirKey){
+  if (game.player.moving) return;
+
+  const dirs = {
+    'ArrowDown': {dx:0, dy:1, d:0},
+    'ArrowUp': {dx:0, dy:-1, d:1},
+    'ArrowLeft': {dx:-1, dy:0, d:2},
+    'ArrowRight': {dx:1, dy:0, d:3}
+  };
+  const {dx,dy,d} = dirs[dirKey];
+  game.player.dir=d;
+
+  const map = MAPS[game.map];
+  const nx = game.player.x+dx;
+  const ny = game.player.y+dy;
+
+  // exits
+  const exit = map.exits?.find(e=> e.x===nx && e.y===ny);
+  if (exit){
+    game.map = exit.toMap;
+    game.player.x = exit.toX;
+    game.player.y = exit.toY;
+    return;
+  }
+
+  if (nx<0 || ny<0 || nx>=map.width || ny>=map.height) return;
+
+  const tile = map.data[ny][nx];
+  if (SOLID_TILES.has(tile)) return;
+
+  if (map.npcs?.some(n=> n.x===nx && n.y===ny)) return;
+
+  game.player.moving=true;
+  game.player.x=nx; game.player.y=ny;
+
+  setTimeout(()=>{
+    game.player.moving=false;
+
+    if (tile===T.TALLGRASS && map.encounters?.length){
+      if (h2(nx,ny,999) < 0.12) startWildBattle();
+    }
+    render();
+  }, 90);
+}
+
+function interact(){
+  const map = MAPS[game.map];
+  const dirs = [[0,1],[0,-1],[-1,0],[1,0]];
+  const [dx,dy] = dirs[game.player.dir];
+  const tx = game.player.x+dx;
+  const ty = game.player.y+dy;
+
+  const npc = map.npcs?.find(n=> n.x===tx && n.y===ty);
+  if (npc){
+    if (npc.action==='starter' && !game.starterChosen){
+      showDialogSequence(npc.dialog, ()=>{ game.state='starter'; render(); });
+    } else {
+      showDialogSequence(npc.dialog);
+    }
+    return;
+  }
+
+  const tile = map.data[ty]?.[tx];
+  if ([T.HOUSE_DOOR, T.PC_DOOR, T.MART_DOOR, T.GYM_DOOR].includes(tile)){
+    const building = map.buildings?.find(b=>{
+      return ty === b.y+2 && (tx===b.x+1 || tx===b.x+2);
+    });
+    if (building?.action==='heal'){
+      game.pokemon.forEach(p=> p.hp=p.maxHp);
+      showDialog('¡Tus Pokémon han sido curados!');
+    } else if (building?.action==='shop'){
+      openShop(building.items || ['pokeball','potion']);
+    } else {
+      showDialog('La puerta está cerrada.');
+    }
+  }
+}
+
+function showDialog(text, callback){
+  game.dialog={ text, callback };
+  render();
+}
+function showDialogSequence(texts, callback){
+  if (!Array.isArray(texts)) texts=[texts];
+  let i=0;
+  const next=()=>{
+    if (i<texts.length){
+      showDialog(texts[i], ()=>{ i++; next(); });
+    } else if (callback) callback();
+  };
+  next();
+}
+function showDialogOptions(text, options, callback){
+  game.dialog={ text, options, selected:0, callback };
+  render();
+}
+function closeDialog(){
+  game.dialog=null;
+  document.getElementById('ui-layer').innerHTML='';
+}
+
+function openShop(itemIds){
+  const list = itemIds.map(id=> `${ITEMS[id].name} - ₧${ITEMS[id].price}`).join('\n');
+  showDialog(`¡Bienvenido!\n\n${list}`, ()=>{
+    showDialogOptions('¿Qué deseas comprar?', [...itemIds.map(id=>ITEMS[id].name),'Nada'], (sel)=>{
+      if (sel < itemIds.length){
+        const itemId = itemIds[sel];
+        const item = ITEMS[itemId];
+        if (game.money >= item.price){
+          game.money -= item.price;
+          game.items[itemId] = (game.items[itemId]||0)+1;
+          showDialog(`¡Has comprado ${item.name}!`);
+        } else showDialog('No tienes suficiente dinero.');
+      }
+    });
+  });
+}
+
+function executeMenu(){
+  switch(game.menu.index){
+    case 0:{
+      let txt='Tu equipo:\n\n';
+      game.pokemon.forEach(p=>{
+        txt += `${p.name} Nv.${p.level}\nPS: ${p.hp}/${p.maxHp}\n\n`;
+      });
+      showDialog(txt);
+      break;
+    }
+    case 1:{
+      let bag='Mochila:\n\n';
+      for (const [id,count] of Object.entries(game.items)){
+        if (count>0 && ITEMS[id]) bag += `${ITEMS[id].name} x${count}\n`;
+      }
+      if (bag==='Mochila:\n\n') bag += '(vacía)';
+      showDialog(bag);
+      break;
+    }
+    case 2:{
+      const badges = game.badges.length ? game.badges.join('\n') : '(ninguna)';
+      showDialog(`Medallas:\n\n${badges}`);
+      break;
+    }
+    case 3:{
+      localStorage.setItem('pokemon_comarca_save', JSON.stringify(game));
+      showDialog('¡Partida guardada!');
+      break;
+    }
+    case 4:{
+      game.state='world';
+      game.menu=null;
+      document.getElementById('ui-layer').innerHTML='';
+      break;
+    }
+  }
+}
+
+/* =========================
+   POKEMON + BATTLES
+========================= */
+function createPokemon(id, level){
+  const d = POKEMON_DATA[id];
+  if (!d) return null;
+  const p = {
+    id, name:d.name, type:d.type, level,
+    maxHp: Math.floor((d.hp*2*level/100)+level+10),
+    atk:   Math.floor((d.atk*2*level/100)+5),
+    def:   Math.floor((d.def*2*level/100)+5),
+    spd:   Math.floor((d.spd*2*level/100)+5),
+    moves: (d.moves||[]).slice(0,4),
+    exp:0, expNext: level*level*4
+  };
+  p.hp = p.maxHp;
+  return p;
+}
+
+function getTypeEffectiveness(attackType, defenseType){
+  const chart = TYPE_CHART[attackType];
+  if (chart && chart[defenseType]!==undefined) return chart[defenseType];
+  return 1;
+}
+
+function startWildBattle(){
+  const map = MAPS[game.map];
+  const encounters = map.encounters || [];
+  const total = encounters.reduce((s,e)=>s+e.rate,0);
+  let r = Math.random()*total;
+  let enc = encounters[0];
+  for (const e of encounters){
+    r -= e.rate;
+    if (r<=0){ enc=e; break; }
+  }
+  const lv = Math.floor(Math.random()*(enc.maxLv-enc.minLv+1))+enc.minLv;
+  const enemy = createPokemon(enc.id, lv);
+
+  game.battle = {
+    type:'wild',
+    player: {...game.pokemon[0]},
+    enemy,
+    phase:'action',
+    message:`¡Un ${enemy.name} salvaje apareció!`,
+    callback:null
+  };
+  game.state='battle';
+}
+
+function battleAction(action){
+  const b = game.battle;
+  if (!b) return;
+
+  if (action==='fight') b.phase='moves';
+
+  else if (action==='bag'){
+    showDialogOptions('¿Qué objeto usar?', ['Poción','Poké Ball','Cancelar'], (sel)=>{
+      if (sel===0 && (game.items.potion||0)>0){
+        game.items.potion--;
+        b.player.hp = Math.min(b.player.maxHp, b.player.hp + 20);
+        b.message = `${b.player.name} recuperó PS!`;
+        b.callback = ()=> enemyTurn();
+      } else if (sel===1 && (game.items.pokeball||0)>0 && b.type==='wild'){
+        game.items.pokeball--;
+        const catchRate = Math.max(15, 80 - b.enemy.level);
+        if (Math.random()*100 < catchRate){
+          game.pokemon.push({...b.enemy});
+          endBattle(`¡Has capturado a ${b.enemy.name}!`);
+        } else {
+          b.message='¡Oh no! ¡Se ha escapado!';
+          b.callback=()=>enemyTurn();
+        }
+      }
+      render();
+    });
+  }
+
+  else if (action==='pokemon'){
+    showDialog('Cambio de Pokémon (pendiente).');
+  }
+
+  else if (action==='run'){
+    if (b.type==='wild'){
+      if (Math.random()<0.75) endBattle('¡Has escapado!');
+      else { b.message='¡No puedes escapar!'; b.callback=()=>enemyTurn(); }
+    } else showDialog('¡No puedes huir de un entrenador!');
+  }
+
+  render();
+}
+
+function useMove(index){
+  const b = game.battle;
+  if (!b) return;
+
+  const moveName = b.player.moves[index];
+  const md = MOVES_DATA[moveName];
+  if (!md){ b.message=`${b.player.name} usó ${moveName}!`; b.callback=()=>enemyTurn(); b.phase='action'; return render(); }
+
+  const eff = getTypeEffectiveness(md.type, b.enemy.type);
+  let dmg = Math.floor(((2*b.player.level/5+2)*md.power*b.player.atk/b.enemy.def/50)+2);
+  dmg = Math.max(1, Math.floor(dmg*eff));
+
+  b.enemy.hp = Math.max(0, b.enemy.hp - dmg);
+
+  let msg = `${b.player.name} usó ${moveName}!`;
+  if (eff>1) msg += `\n¡Es súper efectivo!`;
+  else if (eff<1 && eff>0) msg += `\nNo es muy efectivo...`;
+  else if (eff===0) msg += `\nNo afecta...`;
+
+  b.message = msg;
+  b.phase='action';
+  b.callback = ()=>{
+    if (b.enemy.hp<=0) endBattle(`¡${b.enemy.name} derrotado!`);
+    else enemyTurn();
+  };
+  render();
+}
+
+function enemyTurn(){
+  const b = game.battle;
+  if (!b) return;
+
+  const moves = b.enemy.moves || ['Placaje'];
+  const moveName = moves[Math.floor(Math.random()*moves.length)];
+  const md = MOVES_DATA[moveName] || { power:40, type:'Normal' };
+
+  const eff = getTypeEffectiveness(md.type, b.player.type);
+  let dmg = Math.floor(((2*b.enemy.level/5+2)*md.power*b.enemy.atk/b.player.def/50)+2);
+  dmg = Math.max(1, Math.floor(dmg*eff));
+
+  b.player.hp = Math.max(0, b.player.hp - dmg);
+
+  let msg = `${b.enemy.name} usó ${moveName}!`;
+  if (eff>1) msg += `\n¡Es súper efectivo!`;
+  else if (eff<1 && eff>0) msg += `\nNo es muy efectivo...`;
+
+  b.message = msg;
+  b.callback = ()=>{
+    if (b.player.hp<=0){
+      game.pokemon[0].hp = 1;
+      endBattle('¡Tu Pokémon se ha debilitado!');
+    } else {
+      b.message=null;
+      render();
+    }
+  };
+  render();
+}
+
+function endBattle(msg){
+  game.battle.message = msg;
+  game.battle.callback = ()=>{
+    if (game.pokemon[0]) game.pokemon[0].hp = Math.max(1, Math.min(game.pokemon[0].maxHp, game.battle.player.hp));
+    game.state='world';
+    game.battle=null;
+    document.getElementById('ui-layer').innerHTML='';
+    render();
+  };
+  render();
+}
+
+/* =========================
+   INIT
+========================= */
+function init(){
+  createGBATileset();
+  createPlayerSprite();
+  createNPCSprites();
+  generateMapData();
+
+  // spawn
+  const spawn = MAPS[game.map]?.spawn;
+  if (spawn){ game.player.x=spawn.x; game.player.y=spawn.y; }
+
+  const save = localStorage.getItem('pokemon_comarca_save');
+  if (save){
+    try{
+      const data = JSON.parse(save);
+      Object.assign(game, data);
+      game.dialog=null; game.battle=null; game.menu=null;
+    } catch(e){}
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','x','Escape'].includes(e.key)){
+      e.preventDefault();
+      handleKey(e.key);
+    }
+  });
+
+  function loop(){
+    render();
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+init();
+</script>
+</body>
+</html>
