@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokémon Comarca de Cariñena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #2d1b4e 0%, #1a3a2a 50%, #4a2040 100%);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #game-wrapper {
+      position: relative;
+      padding: 20px;
+      background: linear-gradient(145deg, #3a3a3a, #1a1a1a);
+      border-radius: 20px;
+      box-shadow:
+        0 20px 60px rgba(0,0,0,0.5),
+        inset 0 2px 4px rgba(255,255,255,0.1);
+    }
+
+    #game {
+      display: block;
+      max-width: 100%;
+      border-radius: 8px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    .title-overlay {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #f8d030;
+      font-size: 8px;
+      text-shadow: 2px 2px #000;
+      pointer-events: none;
+    }
+
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      font-size: 12px;
+      z-index: 1000;
+    }
+
+    #loading.hidden {
+      display: none;
+    }
+
+    .loading-bar {
+      width: 200px;
+      height: 20px;
+      border: 3px solid #fff;
+      margin-top: 20px;
+      overflow: hidden;
+    }
+
+    .loading-fill {
+      height: 100%;
+      width: 0%;
+      background: #f8d030;
+      animation: load 2s ease-in-out forwards;
+    }
+
+    @keyframes load {
+      to { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div>CARGANDO...</div>
+    <div class="loading-bar">
+      <div class="loading-fill"></div>
+    </div>
+  </div>
+
+  <div id="game-wrapper">
+    <canvas id="game"></canvas>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="src/utils.js"></script>
+  <script src="src/entities/player.js"></script>
+  <script src="src/entities/pokemon.js"></script>
+  <script src="src/entities/npc.js"></script>
+  <script src="src/scenes/menu.js"></script>
+  <script src="src/scenes/world.js"></script>
+  <script src="src/scenes/battle.js"></script>
+  <script src="src/scenes/regionMap.js"></script>
+  <script src="src/main.js"></script>
+
+  <script>
+    // Prevenir scroll con flechas
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    // Ocultar loading cuando termine
+    setTimeout(() => {
+      document.getElementById('loading').classList.add('hidden');
+    }, 2000);
+  </script>
+</body>
+</html>
