@@ -319,9 +319,103 @@ const MAPS = {
     exits: [
       { x: 0, y: 15, toMap: 'encinacorba', toX: 23, toY: 10 },
       { x: 0, y: 16, toMap: 'encinacorba', toX: 23, toY: 11 },
+      { x: 29, y: 12, toMap: 'ruta_vino_2', toX: 1, toY: 12 },
+      { x: 29, y: 13, toMap: 'ruta_vino_2', toX: 1, toY: 13 }
     ],
     spawn: { x: 2, y: 15 }
+  },
+  ruta_vino_2: {
+    name: 'Ruta del Vino 2',
+    width: 30, height: 25,
+    encounters: [
+      { id: 16, rate: 70, minLv: 3, maxLv: 5 },
+      { id: 1, rate: 30, minLv: 3, maxLv: 5 }
+    ],
+    data: null,
+    npcs: [],
+    buildings: [],
+    exits: [
+      { x: 0, y: 12, toMap: 'ruta_vino_1', toX: 28, toY: 12 },
+      { x: 0, y: 13, toMap: 'ruta_vino_1', toX: 28, toY: 13 },
+      { x: 29, y: 12, toMap: 'carinena', toX: 1, toY: 10 },
+      { x: 29, y: 13, toMap: 'carinena', toX: 1, toY: 11 }
+    ],
+    spawn: { x: 2, y: 12 }
+  },
+  carinena: {
+    name: 'Cariñena',
+    width: 30, height: 25,
+    encounters: [],
+    data: null,
+    npcs: [
+      { x: 14, y: 12, name: 'Alcalde', sprite: 'oldman',
+        dialog: ['¡Bienvenido a Cariñena!', 'La capital del vino de Aragón.', 'Aquí encontrarás el Gimnasio.'] }
+    ],
+    buildings: [
+      { x: 6, y: 7, type: 'pokecenter', action: 'heal' },
+      { x: 12, y: 7, type: 'mart', action: 'shop', items: ['pokeball','potion'] },
+      { x: 20, y: 7, type: 'gym', name: 'Gimnasio Cariñena' }
+    ],
+    exits: [
+      { x: 0, y: 10, toMap: 'ruta_vino_2', toX: 28, toY: 12 },
+      { x: 0, y: 11, toMap: 'ruta_vino_2', toX: 28, toY: 13 },
+      { x: 29, y: 12, toMap: 'ruta_vino_3', toX: 1, toY: 12 }
+    ],
+    spawn: { x: 2, y: 10 }
+  },
+  ruta_vino_3: {
+    name: 'Ruta del Vino 3',
+    width: 30, height: 25,
+    encounters: [
+      { id: 16, rate: 50, minLv: 5, maxLv: 8 },
+      { id: 4, rate: 30, minLv: 4, maxLv: 7 },
+      { id: 7, rate: 20, minLv: 4, maxLv: 7 }
+    ],
+    data: null,
+    npcs: [],
+    buildings: [],
+    exits: [
+      { x: 0, y: 12, toMap: 'carinena', toX: 28, toY: 12 }
+    ],
+    spawn: { x: 2, y: 12 }
   }
+};
+
+/* =========================
+   MAPA REGIONAL DE LA COMARCA
+========================= */
+const REGION_MAP = {
+  name: 'Comarca de Cariñena',
+  locations: [
+    { id: 'encinacorba', name: 'Encinacorba', x: 60, y: 180, type: 'town',
+      desc: 'Tu pueblo natal. Aquí vive el Prof. Garnacha.' },
+    { id: 'ruta_vino_1', name: 'Ruta Vino 1', x: 120, y: 180, type: 'route',
+      desc: 'Camino entre viñedos. Pokémon salvajes.' },
+    { id: 'ruta_vino_2', name: 'Ruta Vino 2', x: 180, y: 160, type: 'route',
+      desc: 'Sendero por las bodegas antiguas.' },
+    { id: 'carinena', name: 'Cariñena', x: 250, y: 140, type: 'city',
+      desc: 'Capital del vino. Tiene Gimnasio.' },
+    { id: 'ruta_vino_3', name: 'Ruta Vino 3', x: 320, y: 120, type: 'route',
+      desc: 'Camino hacia las montañas.' },
+    { id: 'aguaron', name: 'Aguarón', x: 380, y: 100, type: 'town', locked: true,
+      desc: 'Pueblo de las fuentes. (Próximamente)' },
+    { id: 'paniza', name: 'Paniza', x: 250, y: 80, type: 'town', locked: true,
+      desc: 'Pueblo en las alturas. (Próximamente)' },
+    { id: 'cosuenda', name: 'Cosuenda', x: 150, y: 100, type: 'town', locked: true,
+      desc: 'Valle escondido. (Próximamente)' },
+    { id: 'alfamen', name: 'Alfamén', x: 320, y: 200, type: 'town', locked: true,
+      desc: 'Tierra de olivos. (Próximamente)' }
+  ],
+  connections: [
+    ['encinacorba', 'ruta_vino_1'],
+    ['ruta_vino_1', 'ruta_vino_2'],
+    ['ruta_vino_2', 'carinena'],
+    ['carinena', 'ruta_vino_3'],
+    ['ruta_vino_3', 'aguaron'],
+    ['carinena', 'paniza'],
+    ['ruta_vino_1', 'cosuenda'],
+    ['carinena', 'alfamen']
+  ]
 };
 
 /* =========================
@@ -335,6 +429,14 @@ function generateMapData() {
   ], { exitRight: true });
 
   MAPS.ruta_vino_1.data = generateRouteMap(30, 25, 0.35);
+  MAPS.ruta_vino_2.data = generateRouteMap(30, 25, 0.40);
+  MAPS.ruta_vino_3.data = generateRouteMap(30, 25, 0.45);
+
+  MAPS.carinena.data = generateTownMap(30, 25, [
+    { x: 6, y: 6, w: 4, h: 3, type: 'pokecenter' },
+    { x: 12, y: 6, w: 4, h: 3, type: 'mart' },
+    { x: 20, y: 6, w: 4, h: 3, type: 'gym' }
+  ], { exitLeft: true, exitRight: true });
 }
 
 function generateTownMap(w, h, buildings, opts = {}) {
@@ -732,11 +834,13 @@ let game = {
   items:{ pokeball:5, potion:3 },
   badges:[],
   defeatedTrainers:[],
+  visitedMaps: ['encinacorba'],
   starterChosen:false,
   starterIndex:0,
   dialog:null,
   battle:null,
   menu:null,
+  regionMap:null,
   animFrame:0
 };
 
