@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Puros de la Comarca de Cariñena</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: #2a1810;
+    color: #f8e8c0;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  canvas#game {
+    background: #000;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: min(96vw, 90vh * 1.5);
+    height: auto;
+    border: 4px solid #7a4a24;
+    border-radius: 6px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    touch-action: none;
+  }
+  /* Controles táctiles: sólo visibles en pantallas táctiles / pequeñas */
+  #touch {
+    display: none;
+    width: min(96vw, 600px);
+    margin-top: 12px;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  @media (hover: none) and (pointer: coarse) {
+    #touch { display: flex; }
+  }
+  .pad { position: relative; width: 150px; height: 150px; }
+  .pad button {
+    position: absolute;
+    width: 50px; height: 50px;
+    background: #7a4a24;
+    border: 3px solid #4a2a12;
+    color: #f8e8c0;
+    font-size: 20px;
+    border-radius: 8px;
+  }
+  .pad button:active { background: #a06838; }
+  #btn-up   { left: 50px; top: 0; }
+  #btn-down { left: 50px; top: 100px; }
+  #btn-left { left: 0;    top: 50px; }
+  #btn-right{ left: 100px;top: 50px; }
+  .ab { display: flex; gap: 18px; align-items: center; }
+  .ab button {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: 3px solid #4a2a12;
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  #btn-a { background: #c83838; }
+  #btn-b { background: #3858a8; }
+  .ab button:active { filter: brightness(1.3); }
+  #hint { margin-top: 10px; font-size: 11px; color: #b89868; text-align: center; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="480" height="320"></canvas>
+    <div id="touch">
+      <div class="pad">
+        <button id="btn-up">▲</button>
+        <button id="btn-left">◀</button>
+        <button id="btn-right">▶</button>
+        <button id="btn-down">▼</button>
+      </div>
+      <div class="ab">
+        <button id="btn-b">B</button>
+        <button id="btn-a">A</button>
+      </div>
+    </div>
+    <div id="hint">Flechas/WASD: mover · Z/Enter: A (aceptar) · X/Esc: B (atrás)</div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
