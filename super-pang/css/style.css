@@ -20,7 +20,7 @@ html, body { height: 100%; }
 
 body {
   background:
-    radial-gradient(circle at 50% 0%, #1a0033 0%, var(--bg-deep) 60%, #000 100%);
+    radial-gradient(circle at 50% 0%, #0a2a5e 0%, #061633 55%, #02060f 100%);
   color: #fff;
   font-family: var(--arcade-font);
   display: flex;
@@ -35,20 +35,26 @@ body {
   touch-action: manipulation;
 }
 
-/* Marco tipo mueble arcade con borde neón. */
+/* Mueble arcade sobrio (azul oscuro, sin neón). */
 #cabinet {
-  padding: clamp(6px, 2vmin, 22px);
-  border-radius: 14px;
-  background: linear-gradient(160deg, #1b1030, #05000c);
+  padding: clamp(6px, 2vmin, 20px);
+  border-radius: 10px;
+  background: linear-gradient(160deg, #10204a, #04102e);
   box-shadow:
-    0 0 0 2px rgba(155, 92, 255, 0.5),
-    0 0 22px rgba(155, 92, 255, 0.45),
-    0 0 60px rgba(255, 43, 214, 0.25),
-    inset 0 0 40px rgba(0, 0, 0, 0.8);
+    0 0 0 3px #0a1f4a,
+    0 0 0 5px #2f6bd6,
+    0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
-/* Contenedor que mantiene 4:3 y limita el tamaño a la ventana. */
-#stage {
+/* Zona donde se centra la pantalla (en escritorio ocupa todo el cabinet). */
+#playfield {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pantalla 4:3 que mantiene la relación de aspecto y limita su tamaño. */
+#screen {
   position: relative;
   aspect-ratio: 4 / 3;
   width: min(92vw, calc(86vh * 4 / 3));
@@ -73,36 +79,17 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: 5;
-  /* Scanlines */
+  /* Scanlines suaves (intensidad baja, ~10%). */
   background:
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0)   0px,
-      rgba(0, 0, 0, 0)   2px,
-      rgba(0, 0, 0, 0.18) 3px,
-      rgba(0, 0, 0, 0.18) 4px
+      rgba(0, 0, 0, 0)    0px,
+      rgba(0, 0, 0, 0)    2px,
+      rgba(0, 0, 0, 0.10) 3px,
+      rgba(0, 0, 0, 0.10) 4px
     );
-  /* Viñeta */
-  box-shadow: inset 0 0 120px 24px rgba(0, 0, 0, 0.65);
-  mix-blend-mode: multiply;
-}
-/* Brillo de barrido sutil que recorre la pantalla. */
-#crt::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(155, 92, 255, 0.06),
-    rgba(20, 240, 255, 0.02) 50%,
-    rgba(255, 43, 214, 0.05)
-  );
-  animation: crt-flicker 4.5s infinite steps(60);
-  opacity: 0.5;
-}
-@keyframes crt-flicker {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 0.55; }
+  /* Viñeta muy leve para no oscurecer el juego. */
+  box-shadow: inset 0 0 90px 10px rgba(0, 0, 0, 0.28);
 }
 
 /* ============================ Controles UI ============================ */
@@ -117,76 +104,60 @@ body {
 }
 #util-buttons button {
   font-family: var(--arcade-font);
-  font-size: clamp(10px, 1.6vmin, 14px);
-  color: var(--neon-cyan);
-  background: rgba(10, 0, 16, 0.7);
-  border: 1px solid var(--neon-cyan);
-  border-radius: 6px;
-  padding: 6px 8px;
+  font-size: clamp(9px, 1.5vmin, 13px);
+  color: #cfe2ff;
+  background: rgba(4, 16, 46, 0.7);
+  border: 1px solid rgba(47, 107, 214, 0.9);
+  border-radius: 4px;
+  padding: 5px 7px;
   cursor: pointer;
-  text-shadow: 0 0 6px var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(20, 240, 255, 0.4);
   transition: transform 0.08s ease;
 }
 #util-buttons button:active { transform: scale(0.9); }
 
-/* ---- Controles táctiles (móvil) ---- */
-#touch-controls {
-  position: absolute;
-  inset: auto 0 0 0;
-  z-index: 15;
-  display: none;                 /* game.js lo activa en dispositivos touch */
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 10px 14px 16px;
-  pointer-events: none;          /* sólo los botones capturan toques */
-}
-#touch-controls.show { display: flex; }
-.pad { display: flex; gap: 10px; pointer-events: auto; }
-.pad-mid { flex-direction: column; gap: 8px; }
+/* ---- Botones táctiles ---- */
+/* Por defecto (escritorio) los mandos están ocultos. Se muestran y colocan
+   en dispositivos táctiles mediante las media queries de más abajo. */
+#pad-move, #pad-fire { display: none; }
 
+/* Botones arcade discretos: círculo oscuro semitransparente, borde claro. */
 .tbtn {
   font-family: var(--arcade-font);
-  font-size: clamp(14px, 3.2vmin, 24px);
-  color: #fff;
-  width: clamp(52px, 11vmin, 78px);
-  height: clamp(52px, 11vmin, 78px);
+  font-size: clamp(13px, 3.2vmin, 20px);
+  color: #eaf2ff;
+  width: clamp(46px, 10vmin, 66px);
+  height: clamp(46px, 10vmin, 66px);
   border-radius: 50%;
-  background: rgba(20, 0, 40, 0.55);
-  border: 2px solid var(--neon-magenta);
-  box-shadow:
-    0 0 14px rgba(255, 43, 214, 0.6),
-    inset 0 0 12px rgba(255, 43, 214, 0.3);
-  text-shadow: 0 0 8px var(--neon-magenta);
+  background: rgba(6, 16, 40, 0.5);
+  border: 2px solid rgba(234, 242, 255, 0.85);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+  -webkit-user-select: none; user-select: none;
 }
-.tbtn:active {
-  background: rgba(255, 43, 214, 0.35);
-  transform: scale(0.94);
+.tbtn:active { background: rgba(47, 107, 214, 0.55); transform: scale(0.94); }
+
+.tbtn-ud {
+  border-color: rgba(59, 208, 255, 0.85);
+  color: #9be3ff;
+  width: clamp(42px, 9vmin, 58px);
+  height: clamp(42px, 9vmin, 58px);
 }
+/* FIRE: botón rojo/naranja arcade, claro y no gigante. */
 .tbtn-fire {
-  width: auto;
-  padding: 0 clamp(14px, 4vmin, 26px);
-  border-radius: 40px;
-  color: var(--neon-yellow);
-  border-color: var(--neon-yellow);
-  box-shadow:
-    0 0 16px rgba(247, 255, 60, 0.7),
-    inset 0 0 12px rgba(247, 255, 60, 0.3);
-  text-shadow: 0 0 8px var(--neon-yellow);
+  width: clamp(64px, 17vmin, 100px);
+  height: clamp(64px, 17vmin, 100px);
+  font-size: clamp(10px, 2.4vmin, 15px);
+  color: #fff;
+  background: rgba(180, 24, 40, 0.6);
+  border: 2px solid #ff7a1f;
 }
-.tbtn-up, .tbtn-down {
-  width: clamp(46px, 9vmin, 64px);
-  height: clamp(46px, 9vmin, 64px);
-  border-color: var(--neon-cyan);
-  box-shadow:
-    0 0 12px rgba(20, 240, 255, 0.6),
-    inset 0 0 10px rgba(20, 240, 255, 0.3);
-  text-shadow: 0 0 8px var(--neon-cyan);
-}
+.tbtn-fire:active { background: rgba(255, 59, 78, 0.7); }
+
+.grp { display: flex; gap: clamp(8px, 2vmin, 16px); }
+.grp-ud { flex-direction: column; }
 
 #hint {
   margin-top: 14px;
@@ -197,7 +168,81 @@ body {
   text-shadow: 0 0 6px rgba(155, 92, 255, 0.5);
   max-width: 90vw;
 }
-/* En pantallas pequeñas (móvil) la pista de teclado sobra. */
+
+/* =======================================================================
+   LAYOUT TÁCTIL — el área de juego y los controles NUNCA se solapan.
+   El cabinet ocupa toda la ventana y se divide en regiones disjuntas.
+   ======================================================================= */
 @media (pointer: coarse) {
+  body { display: block; overflow: hidden; }
   #hint { display: none; }
+
+  /* El cabinet pasa a ocupar toda la pantalla; sin marco decorativo. */
+  #cabinet {
+    position: fixed;
+    inset: 0;
+    padding: 0;
+    border-radius: 0;
+    background: var(--bg-deep);
+    box-shadow: none;
+  }
+
+  #screen { border-radius: 0; }
+
+  /* Los mandos se muestran y capturan toques. */
+  #pad-move, #pad-fire {
+    display: flex;
+    position: fixed;
+    z-index: 30;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(10px, 3vmin, 22px);
+  }
+
+  /* ---------- VERTICAL: juego arriba, controles en banda inferior ---------- */
+  @media (orientation: portrait) {
+    /* Reservamos la franja inferior para los botones. */
+    #playfield {
+      position: fixed;
+      left: 0; right: 0; top: 0;
+      bottom: 26vh;                 /* deja hueco abajo para los mandos */
+      padding: 8px;
+    }
+    #screen { width: min(100%, calc((100vh - 26vh - 16px) * 4 / 3)); }
+
+    /* Banda inferior dividida: mover a la izquierda, disparar a la derecha. */
+    #pad-move {
+      left: 0; bottom: 0;
+      width: 58vw; height: 26vh;
+      justify-content: space-evenly;
+    }
+    #pad-fire {
+      right: 0; bottom: 0;
+      width: 42vw; height: 26vh;
+    }
+  }
+
+  /* ---------- HORIZONTAL: juego en el centro, controles en los lados ------- */
+  @media (orientation: landscape) {
+    #playfield {
+      position: fixed;
+      top: 0; bottom: 0;
+      left: 22vw; right: 22vw;       /* deja columnas laterales para mandos */
+      padding: 8px;
+    }
+    /* width:auto para que el aspect-ratio derive el ancho desde la altura. */
+    #screen { width: auto; height: min(100%, calc((100vw - 44vw - 16px) * 3 / 4)); }
+
+    /* Franja izquierda: movimiento + escaleras (apiladas). */
+    #pad-move {
+      left: 0; top: 0; bottom: 0;
+      width: 22vw;
+      flex-direction: column;
+    }
+    /* Franja derecha: disparo. */
+    #pad-fire {
+      right: 0; top: 0; bottom: 0;
+      width: 22vw;
+    }
+  }
 }
