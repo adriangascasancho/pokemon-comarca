@@ -51,7 +51,7 @@ const BALL = {
 };
 
 const PLAYER = {
-  w: 34, h: 46,
+  w: 36, h: 48,
   speed: 230,        // px/s horizontal
   climbSpeed: 150,   // px/s en escalera
   respawnInvuln: 2.0 // s de invulnerabilidad tras reaparecer
@@ -80,11 +80,45 @@ const ADHESIVE_MODE_TIME = 8.0;    // s con disparos adhesivos activos
 
 const COMBO_WINDOW = 1.5;          // s para encadenar combo
 
-// Personajes jugables (guiño a los hermanos del original).
+// Personajes jugables (guiño a los hermanos Buster Bros del original).
 const CHARACTERS = [
   { name: 'CYAN',    body: '#14f0ff', glow: '#14f0ff', dark: '#0a6f7a' },
   { name: 'MAGENTA', body: '#ff2bd6', glow: '#ff2bd6', dark: '#7a0a63' },
 ];
+
+/* Sprite pixel-art del personaje (estilo arcade Super Pang): muñequito con
+   gorra, cara, mono de color y botas. Rejilla 12×16; cada celda se pinta como
+   un "pixel" gordo. Códigos:
+     . transparente   C gorra (color)   c sombra gorra
+     S piel            E ojo             B mono (color)
+     D mono (sombra)   O botas           W brillo blanco        */
+const CHAR_PX = 3;                 // tamaño de cada pixel del sprite (12*3=36, 16*3=48)
+const CHAR_BITMAP = [
+  '....CCCC....',
+  '...CCCCCC...',
+  '..cCCCCCCc..',
+  '..cccccccc..',
+  '...SSSSSS...',
+  '..SSSSSSSS..',
+  '..SSESSESS..',
+  '..SSSSSSSS..',
+  '...SSSSSS...',
+  '..WBBBBBBW..',
+  '.BBBBBBBBBB.',
+  '.BBDDDDDDBB.',
+  '.BBDDDDDDBB.',
+  '..DD....DD..',
+  '..BB....BB..',
+  '..OO....OO..',
+];
+function charPalette(ch) {
+  return { '.':null, 'C':ch.body, 'c':ch.dark, 'S':'#ffc59e', 'E':'#0a1822',
+           'B':ch.body, 'D':ch.dark, 'O':'#15151f', 'W':'#ffffff' };
+}
+
+// Resolución a la que se "pixela" el fondo (look 16-bit). 4:3.
+const BG_PX_W = 220, BG_PX_H = 165;
+const BG_POSTERIZE = 6;            // niveles de color por canal
 
 const STATE = { TITLE:'title', TRANSITION:'transition', PLAY:'play',
                 PAUSE:'pause', GAMEOVER:'gameover', WIN:'win' };
@@ -113,6 +147,32 @@ function roundRect(c, x, y, w, h, r) {
   c.arcTo(x, y+h, x, y, r);
   c.arcTo(x, y, x+w, y, r);
   c.closePath();
+}
+
+// Convierte una imagen en un canvas pixel-art de baja resolución + colores
+// posterizados (look 16-bit arcade). Devuelve un <canvas> listo para escalar.
+function pixelizeImage(img) {
+  const pc = document.createElement('canvas');
+  pc.width = BG_PX_W; pc.height = BG_PX_H;
+  const p = pc.getContext('2d');
+  // Recorte tipo "cover" para que la foto llene el 4:3 sin deformarse.
+  const ir = img.width / img.height, tr = BG_PX_W / BG_PX_H;
+  let sw = img.width, sh = img.height, sx = 0, sy = 0;
+  if (ir > tr) { sw = img.height * tr; sx = (img.width - sw) / 2; }
+  else         { sh = img.width / tr;  sy = (img.height - sh) / 2; }
+  p.drawImage(img, sx, sy, sw, sh, 0, 0, BG_PX_W, BG_PX_H);
+  // Posterizar para reducir la paleta (si el origen es cross-origin/file://
+  // getImageData lanza; en ese caso nos quedamos sólo con la pixelación).
+  try {
+    const id = p.getImageData(0, 0, BG_PX_W, BG_PX_H), d = id.data, L = BG_POSTERIZE;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i]   = Math.round(d[i]   / 255 * L) / L * 255;
+      d[i+1] = Math.round(d[i+1] / 255 * L) / L * 255;
+      d[i+2] = Math.round(d[i+2] / 255 * L) / L * 255;
+    }
+    p.putImageData(id, 0, 0);
+  } catch (e) { /* canvas "tainted": dejamos sólo el pixelado */ }
+  return pc;
 }
 
 /* =========================================================================
@@ -299,14 +359,31 @@ class Harpoon {
     return (dx*dx + dy*dy) <= (ball.r + HARPOON.halfW) ** 2;
   }
   draw(c) {
+    // Cable en zigzag (como el "wire" del Super Pang original) + punta de arpón.
+    const wire = this.adhesive ? '#d8c0ff' : '#cfeaff';
+    const edge = this.adhesive ? '#9b5cff' : '#14f0ff';
     c.save();
-    const col = this.adhesive ? '#9b5cff' : '#14f0ff';
-    c.shadowColor = col; c.shadowBlur = 14;
-    c.strokeStyle = col; c.lineWidth = HARPOON.halfW * 2;
-    c.beginPath(); c.moveTo(this.x, this.baseY); c.lineTo(this.x, this.tipY); c.stroke();
-    // Punta brillante.
+    c.shadowColor = edge; c.shadowBlur = 8;
+    c.strokeStyle = wire; c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(this.x, this.baseY);
+    const amp = 4, seg = 7;
+    let side = 1;
+    for (let yy = this.baseY - seg; yy > this.tipY; yy -= seg) {
+      c.lineTo(this.x + side * amp, yy);
+      side = -side;
+    }
+    c.lineTo(this.x, this.tipY);
+    c.stroke();
+    // Punta de arpón (flecha metálica).
+    c.shadowBlur = 6;
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(this.x, this.tipY, HARPOON.halfW + 2, 0, Math.PI*2); c.fill();
+    c.beginPath();
+    c.moveTo(this.x, this.tipY - 7);
+    c.lineTo(this.x - 5, this.tipY + 4);
+    c.lineTo(this.x + 5, this.tipY + 4);
+    c.closePath(); c.fill();
+    c.strokeStyle = edge; c.lineWidth = 1.5; c.stroke();
     c.restore();
   }
 }
@@ -483,43 +560,54 @@ class Player {
     const dyingA = this.dying > 0 ? clamp(this.dying/1.2, 0, 1) : 1;
     c.save();
     c.globalAlpha = (this.invuln > 0 && Math.floor(this.invuln*12)%2) ? 0.35 : dyingA;
-    const cx = this.cx, baseY = this.y;
-    if (this.dying > 0) c.translate(cx, baseY + PLAYER.h/2),
-                        c.rotate((1.2 - this.dying) * 6), c.translate(-cx, -(baseY+PLAYER.h/2));
+    const cx = this.cx;
+    // Bamboleo de caminar (sólo en el suelo y moviéndose).
+    const moving = (Input.active.left || Input.active.right) && this.onGround;
+    const bob = moving ? Math.round(Math.abs(Math.sin(this.walkPhase * 0.5))) : 0;
+    const baseY = this.y - bob;
 
-    // Cuerpo redondeado tipo "criatura" con gradiente neón.
-    c.shadowColor = ch.glow; c.shadowBlur = 16;
-    const g = c.createLinearGradient(0, baseY, 0, baseY + PLAYER.h);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.4, ch.body);
-    g.addColorStop(1, ch.dark);
-    c.fillStyle = g;
-    roundRect(c, this.x, baseY, PLAYER.w, PLAYER.h, 12); c.fill();
-    // Borde neón
-    c.shadowBlur = 6; c.strokeStyle = ch.glow; c.lineWidth = 2; c.stroke();
+    // Animación de muerte: girar.
+    if (this.dying > 0) {
+      c.translate(cx, baseY + PLAYER.h/2);
+      c.rotate((1.2 - this.dying) * 6);
+      c.translate(-cx, -(baseY + PLAYER.h/2));
+    }
+    // Mirar a la izquierda = espejar el sprite.
+    if (this.dir < 0) {
+      c.translate(cx, 0); c.scale(-1, 1); c.translate(-cx, 0);
+    }
 
-    // Ojos (miran en la dirección de avance).
-    c.shadowBlur = 0; c.fillStyle = '#04121a';
-    const eo = this.dir * 4;
-    c.beginPath(); c.arc(cx - 7 + eo, baseY + 16, 4, 0, 6.28); c.fill();
-    c.beginPath(); c.arc(cx + 7 + eo, baseY + 16, 4, 0, 6.28); c.fill();
-    c.fillStyle = '#fff';
-    c.beginPath(); c.arc(cx - 7 + eo + this.dir, baseY + 15, 1.5, 0, 6.28); c.fill();
-    c.beginPath(); c.arc(cx + 7 + eo + this.dir, baseY + 15, 1.5, 0, 6.28); c.fill();
+    // Halo neón suave detrás (una sola pasada, barato).
+    c.save();
+    c.shadowColor = ch.glow; c.shadowBlur = 12;
+    c.fillStyle = rgba(ch.glow, 0.18);
+    roundRect(c, this.x + 2, baseY + 2, PLAYER.w - 4, PLAYER.h - 4, 8); c.fill();
+    c.restore();
 
-    // Patitas animadas al andar.
-    c.fillStyle = ch.dark;
-    const lp = Math.sin(this.walkPhase) * 4;
-    c.fillRect(this.x + 6, baseY + PLAYER.h - 4, 8, 6 + (this.onGround? lp : 0));
-    c.fillRect(this.x + PLAYER.w - 14, baseY + PLAYER.h - 4, 8, 6 - (this.onGround? lp : 0));
+    // Sprite pixel-art.
+    drawPixelSprite(c, CHAR_BITMAP, charPalette(ch), this.x, baseY, CHAR_PX);
 
-    // Brazos arriba si está disparando.
+    // Brazos levantados con el arpón al disparar.
     if (this.shootPose > 0) {
-      c.strokeStyle = ch.glow; c.lineWidth = 3; c.shadowColor = ch.glow; c.shadowBlur = 8;
-      c.beginPath(); c.moveTo(this.x+4, baseY+22); c.lineTo(this.x-2, baseY+6); c.stroke();
-      c.beginPath(); c.moveTo(this.x+PLAYER.w-4, baseY+22); c.lineTo(this.x+PLAYER.w+2, baseY+6); c.stroke();
+      c.fillStyle = ch.body;
+      c.fillRect(this.x + CHAR_PX, baseY + 24, CHAR_PX, -14);
+      c.fillRect(this.x + PLAYER.w - 2*CHAR_PX, baseY + 24, CHAR_PX, -14);
     }
     c.restore();
+  }
+}
+
+// Pinta un sprite definido como rejilla de caracteres (cada celda = un pixel
+// gordo de tamaño px). Sin sombra por celda (rápido); el glow se hace aparte.
+function drawPixelSprite(c, bitmap, palette, ox, oy, px) {
+  for (let r = 0; r < bitmap.length; r++) {
+    const row = bitmap[r];
+    for (let col = 0; col < row.length; col++) {
+      const fill = palette[row[col]];
+      if (!fill) continue;
+      c.fillStyle = fill;
+      c.fillRect(ox + col * px, oy + r * px, px, px);
+    }
   }
 }
 
@@ -599,11 +687,14 @@ const Game = {
     this.state = STATE.PLAY;
   },
 
-  // ---- Carga perezosa del fondo (con respaldo si no existe) ----
+  // ---- Carga perezosa del fondo: lo convierte a un escenario "pixel-art" ----
+  // Guardamos un canvas a baja resolución (BG_PX_W×BG_PX_H) con los colores
+  // posterizados; al dibujarlo escalado y sin suavizado se ve como un fondo de
+  // arcade de 16 bits (estilo Super Pang), no como una foto.
   preloadBackground(src, backup) {
     if (this.backgrounds[src] !== undefined) return;
     const img = new Image();
-    img.onload  = () => { this.backgrounds[src] = img; };
+    img.onload  = () => { this.backgrounds[src] = pixelizeImage(img); };
     img.onerror = () => { this.backgrounds[src] = null; };  // usaremos degradado
     img.src = src;
     this.backgrounds[src] = 'loading';
@@ -882,29 +973,36 @@ function glitchTitle(text, x, y, size) {
   ctx.restore();
 }
 
-// --- Fondo del nivel (foto tintada o degradado de respaldo) ---
+// --- Fondo del nivel: escenario pixel-art (como Super Pang) o degradado ---
 function drawBackground(lv) {
-  const img = Game.backgrounds[lv.background];
-  if (img && img !== 'loading' && img !== null) {
-    // Foto del pueblo, oscurecida.
-    ctx.drawImage(img, 0, 0, GAME_W, GAME_H);
-    ctx.fillStyle = 'rgba(2,0,12,0.55)';            // oscurecer
+  const bg = Game.backgrounds[lv.background];
+  if (bg && bg !== 'loading' && bg !== null) {
+    // Canvas pixelado escalado SIN suavizado → pixels gordos de arcade.
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bg, 0, 0, GAME_W, GAME_H);
+    ctx.imageSmoothingEnabled = true;
+    // Tinte muy ligero para integrar la paleta superpunk sin tapar el dibujo.
+    ctx.fillStyle = lv.tint;
+    ctx.globalAlpha = 0.35;
     ctx.fillRect(0, 0, GAME_W, GAME_H);
-    ctx.fillStyle = lv.tint;                         // tinte neón
-    ctx.fillRect(0, 0, GAME_W, GAME_H);
+    ctx.globalAlpha = 1;
   } else {
-    // Respaldo: degradado neón vertical.
+    // Respaldo: degradado neón vertical + rejilla synthwave.
     const g = ctx.createLinearGradient(0, 0, 0, GAME_H);
     g.addColorStop(0, lv.backupGradient[0]);
     g.addColorStop(1, lv.backupGradient[1]);
     ctx.fillStyle = g; ctx.fillRect(0, 0, GAME_W, GAME_H);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(155,92,255,0.12)'; ctx.lineWidth = 1;
+    for (let x=0; x<=GAME_W; x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GAME_H); ctx.stroke(); }
+    for (let y=0; y<=GAME_H; y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GAME_W,y); ctx.stroke(); }
+    ctx.restore();
   }
-  // Rejilla neón cyberpunk sobre el fondo.
-  ctx.save();
-  ctx.strokeStyle = 'rgba(155,92,255,0.12)'; ctx.lineWidth = 1;
-  for (let x=0; x<=GAME_W; x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GAME_H); ctx.stroke(); }
-  for (let y=0; y<=GAME_H; y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GAME_W,y); ctx.stroke(); }
-  ctx.restore();
+  // Degradado oscuro sólo en la franja superior, para que el HUD se lea.
+  const hd = ctx.createLinearGradient(0, 0, 0, 60);
+  hd.addColorStop(0, 'rgba(2,0,12,0.7)');
+  hd.addColorStop(1, 'rgba(2,0,12,0)');
+  ctx.fillStyle = hd; ctx.fillRect(0, 0, GAME_W, 60);
 }
 
 // --- Suelo, plataformas y escaleras ---
