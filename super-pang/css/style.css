@@ -1,0 +1,203 @@
+/* =========================================================================
+   SUPER PANG · SUPERPUNK EDITION — estilos
+   Estética cyberpunk retro-neón: fondos oscuros, neón cian/magenta/violeta,
+   scanlines CRT, glow y glitch. El canvas hace el render del juego; aquí
+   sólo enmarcamos, escalamos y añadimos los overlays/efectos de UI.
+   ========================================================================= */
+
+:root {
+  --neon-cyan:    #14f0ff;
+  --neon-magenta: #ff2bd6;
+  --neon-violet:  #9b5cff;
+  --neon-yellow:  #f7ff3c;
+  --bg-deep:      #0a0010;
+  --arcade-font:  'Press Start 2P', 'Courier New', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  background:
+    radial-gradient(circle at 50% 0%, #1a0033 0%, var(--bg-deep) 60%, #000 100%);
+  color: #fff;
+  font-family: var(--arcade-font);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Marco tipo mueble arcade con borde neón. */
+#cabinet {
+  padding: clamp(6px, 2vmin, 22px);
+  border-radius: 14px;
+  background: linear-gradient(160deg, #1b1030, #05000c);
+  box-shadow:
+    0 0 0 2px rgba(155, 92, 255, 0.5),
+    0 0 22px rgba(155, 92, 255, 0.45),
+    0 0 60px rgba(255, 43, 214, 0.25),
+    inset 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+/* Contenedor que mantiene 4:3 y limita el tamaño a la ventana. */
+#stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: min(92vw, calc(86vh * 4 / 3));
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#game {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;       /* look pixel/arcade al escalar */
+  image-rendering: crisp-edges;
+}
+
+/* ---- Overlay CRT: scanlines + viñeta + leve aberración cromática ---- */
+#crt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  /* Scanlines */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0)   0px,
+      rgba(0, 0, 0, 0)   2px,
+      rgba(0, 0, 0, 0.18) 3px,
+      rgba(0, 0, 0, 0.18) 4px
+    );
+  /* Viñeta */
+  box-shadow: inset 0 0 120px 24px rgba(0, 0, 0, 0.65);
+  mix-blend-mode: multiply;
+}
+/* Brillo de barrido sutil que recorre la pantalla. */
+#crt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(155, 92, 255, 0.06),
+    rgba(20, 240, 255, 0.02) 50%,
+    rgba(255, 43, 214, 0.05)
+  );
+  animation: crt-flicker 4.5s infinite steps(60);
+  opacity: 0.5;
+}
+@keyframes crt-flicker {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.55; }
+}
+
+/* ============================ Controles UI ============================ */
+
+#util-buttons {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+}
+#util-buttons button {
+  font-family: var(--arcade-font);
+  font-size: clamp(10px, 1.6vmin, 14px);
+  color: var(--neon-cyan);
+  background: rgba(10, 0, 16, 0.7);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-shadow: 0 0 6px var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(20, 240, 255, 0.4);
+  transition: transform 0.08s ease;
+}
+#util-buttons button:active { transform: scale(0.9); }
+
+/* ---- Controles táctiles (móvil) ---- */
+#touch-controls {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 15;
+  display: none;                 /* game.js lo activa en dispositivos touch */
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 10px 14px 16px;
+  pointer-events: none;          /* sólo los botones capturan toques */
+}
+#touch-controls.show { display: flex; }
+.pad { display: flex; gap: 10px; pointer-events: auto; }
+.pad-mid { flex-direction: column; gap: 8px; }
+
+.tbtn {
+  font-family: var(--arcade-font);
+  font-size: clamp(14px, 3.2vmin, 24px);
+  color: #fff;
+  width: clamp(52px, 11vmin, 78px);
+  height: clamp(52px, 11vmin, 78px);
+  border-radius: 50%;
+  background: rgba(20, 0, 40, 0.55);
+  border: 2px solid var(--neon-magenta);
+  box-shadow:
+    0 0 14px rgba(255, 43, 214, 0.6),
+    inset 0 0 12px rgba(255, 43, 214, 0.3);
+  text-shadow: 0 0 8px var(--neon-magenta);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tbtn:active {
+  background: rgba(255, 43, 214, 0.35);
+  transform: scale(0.94);
+}
+.tbtn-fire {
+  width: auto;
+  padding: 0 clamp(14px, 4vmin, 26px);
+  border-radius: 40px;
+  color: var(--neon-yellow);
+  border-color: var(--neon-yellow);
+  box-shadow:
+    0 0 16px rgba(247, 255, 60, 0.7),
+    inset 0 0 12px rgba(247, 255, 60, 0.3);
+  text-shadow: 0 0 8px var(--neon-yellow);
+}
+.tbtn-up, .tbtn-down {
+  width: clamp(46px, 9vmin, 64px);
+  height: clamp(46px, 9vmin, 64px);
+  border-color: var(--neon-cyan);
+  box-shadow:
+    0 0 12px rgba(20, 240, 255, 0.6),
+    inset 0 0 10px rgba(20, 240, 255, 0.3);
+  text-shadow: 0 0 8px var(--neon-cyan);
+}
+
+#hint {
+  margin-top: 14px;
+  font-size: clamp(7px, 1.3vmin, 10px);
+  line-height: 1.8;
+  text-align: center;
+  color: rgba(155, 92, 255, 0.75);
+  text-shadow: 0 0 6px rgba(155, 92, 255, 0.5);
+  max-width: 90vw;
+}
+/* En pantallas pequeñas (móvil) la pista de teclado sobra. */
+@media (pointer: coarse) {
+  #hint { display: none; }
+}

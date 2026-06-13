@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0010" />
+  <title>SUPER PANG · SUPERPUNK EDITION</title>
+
+  <!-- Fuente pixel/arcade gratuita. Si no hay red, cae a monospace. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- =======================================================================
+       Marco arcade. Todo el juego vive dentro de #stage para poder escalar
+       manteniendo la relación de aspecto 4:3 (como el arcade original).
+  ======================================================================== -->
+  <div id="cabinet">
+    <div id="stage">
+      <!-- Lienzo del juego. La resolución lógica interna es fija (ver game.js);
+           el CSS lo escala para encajar en pantalla. -->
+      <canvas id="game" width="800" height="600"></canvas>
+
+      <!-- Overlay CRT: scanlines + viñeta + aberración. Puramente decorativo. -->
+      <div id="crt" aria-hidden="true"></div>
+
+      <!-- ---------------------------------------------------------------
+           Controles táctiles para móvil. Ocultos en escritorio por CSS
+           (se muestran cuando el dispositivo soporta touch, ver game.js).
+      ---------------------------------------------------------------- -->
+      <div id="touch-controls" aria-hidden="true">
+        <div class="pad pad-left">
+          <button class="tbtn" data-key="ArrowLeft" aria-label="Izquierda">◀</button>
+          <button class="tbtn" data-key="ArrowRight" aria-label="Derecha">▶</button>
+        </div>
+        <div class="pad pad-mid">
+          <button class="tbtn tbtn-up" data-key="ArrowUp" aria-label="Subir">▲</button>
+          <button class="tbtn tbtn-down" data-key="ArrowDown" aria-label="Bajar">▼</button>
+        </div>
+        <div class="pad pad-right">
+          <button class="tbtn tbtn-fire" data-key="Space" aria-label="Disparar">⌁ FIRE</button>
+        </div>
+      </div>
+
+      <!-- Botones de utilidad (siempre visibles): pausa, mute, fullscreen. -->
+      <div id="util-buttons">
+        <button id="btn-pause"  title="Pausa (P)">❚❚</button>
+        <button id="btn-mute"   title="Silenciar (M)">♪</button>
+        <button id="btn-full"   title="Pantalla completa (F)">⛶</button>
+      </div>
+    </div>
+  </div>
+
+  <p id="hint">
+    ← → mover · ESPACIO disparar · ↑ ↓ escaleras · P pausa · ENTER start ·
+    F pantalla completa · M mute
+  </p>
+
+  <!-- Datos de niveles primero, luego el motor. -->
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
