@@ -58,3 +58,13 @@ Coloca/repón estas fotos en `img/` (si falta alguna, el juego usa un degradado 
 
 Edita `js/levels.js` y añade un objeto al array `LEVELS` con su `background`,
 `platforms`, `ladders`, `balls`, `powerups` y `timeLimit`. El motor lo carga solo.
+
+## Créditos de assets
+
+- **Sprites de personajes y bola** (`img/sprites/`): **Kenney** — kenney.nl,
+  licencia **CC0 1.0** (dominio público, uso libre sin atribución obligatoria;
+  citados por cortesía). La esfera gris se tinta por código a cada color de bola.
+- **Fondos** (`img/nivel*.jpeg`): fotos propias del pueblo, procesadas a pixel-art.
+- **Motor, niveles, HUD, marco y audio**: código y diseño propios.
+- *No se usan sprites, fondos ni sonidos del Super Pang original (con copyright).*
+  Es un homenaje a la jugabilidad del género, con assets propios o CC0.

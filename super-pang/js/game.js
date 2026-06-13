@@ -96,8 +96,8 @@ const COMBO_WINDOW = 1.5;          // s para encadenar combo
 
 // Personajes jugables: dos exploradores chibi propios (azul y naranja).
 const CHARACTERS = [
-  { name: 'AZUL',    body: '#2f7bff', dark: '#16357a', cap: '#1f5fd6' },
-  { name: 'NARANJA', body: '#ff7a1f', dark: '#9c3d05', cap: '#e85c0c' },
+  { name: 'AZUL', body: '#5b9bf0', dark: '#2f5aa8', cap: '#4f86e0' },
+  { name: 'ROSA', body: '#f48ab4', dark: '#b8557e', cap: '#ef79a8' },
 ];
 
 /* Sprite pixel-art chibi (cabeza grande, cuerpo pequeño) inspirado en los
@@ -129,6 +129,53 @@ function charPalette(ch) {
   return { '.':null, 'C':ch.cap, 'c':ch.dark, 'S':'#ffcb94', 'E':'#221a10',
            'B':ch.body, 'D':ch.dark, 'O':'#3a2a14', 'W':'#ffffff' };
 }
+
+/* -------------------------------------------------------------------------
+   SPRITES (assets CC0 de Kenney, dominio público — kenney.nl).
+   Personajes redonditos (P1 azul / P2 rosa) con frames de animación y una
+   esfera glossy gris que tintamos a los colores de cada bola. Si algún PNG
+   no carga, el motor usa el dibujo pixel-art propio como respaldo.
+------------------------------------------------------------------------- */
+const Sprites = {
+  ballBase: null,
+  tintedBalls: [],     // un canvas tintado por color de bola
+  chars: [],           // [{stand,jump,hurt,walk:[...]}, ...] por personaje
+  load() {
+    const mk = (f) => { const i = new Image(); i.src = 'img/sprites/' + f; return i; };
+    this.ballBase = mk('ball_base.png');
+    this.ballBase.onload = () => this.buildTintedBalls();
+    this.chars = [0, 1].map(ci => {
+      const p = 'c' + (ci + 1) + '_';
+      return {
+        stand: mk(p + 'stand.png'),
+        jump:  mk(p + 'jump.png'),
+        hurt:  mk(p + 'hurt.png'),
+        walk:  [0,1,2,3,4,5].map(n => mk(p + 'walk' + n + '.png')),
+      };
+    });
+  },
+  buildTintedBalls() {
+    this.tintedBalls = BALL.colors.map(c => tintImage(this.ballBase, c[0]));
+  },
+};
+// Tinta una imagen gris conservando brillos/sombras (multiply + recorte alfa).
+function tintImage(img, color) {
+  const cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  const x = cv.getContext('2d');
+  x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = 'multiply';
+  x.fillStyle = color; x.fillRect(0, 0, cv.width, cv.height);
+  x.globalCompositeOperation = 'destination-in';   // recorta a la silueta
+  x.drawImage(img, 0, 0);
+  // Realzar un brillo blanco arriba-izquierda para look "burbuja".
+  x.globalCompositeOperation = 'source-over';
+  const r = cv.width * 0.22;
+  x.fillStyle = 'rgba(255,255,255,0.85)';
+  x.beginPath(); x.arc(cv.width*0.34, cv.height*0.32, r, 0, Math.PI*2); x.fill();
+  return cv;
+}
+function spriteReady(img) { return img && img.complete && img.naturalWidth > 0; }
 
 // Resolución a la que se "pixela" el fondo (look 16-bit). 4:3.
 const BG_PX_W = 220, BG_PX_H = 165;
@@ -320,10 +367,15 @@ class Ball {
     }
   }
   draw(c) {
-    // Burbuja "glossy" pixel-art: contorno oscuro, relleno con degradado
-    // suave hacia la sombra inferior y un brillo blanco grande arriba-izq.
-    const [main, light, shade] = BALL.colors[this.size];
     const x = this.x, y = this.y, r = this.r;
+    // Sprite glossy tintado (CC0). Si no está listo, dibujo glossy de respaldo.
+    const tb = Sprites.tintedBalls[this.size];
+    if (tb) {
+      c.imageSmoothingEnabled = true;
+      c.drawImage(tb, x - r, y - r, r * 2, r * 2);
+      return;
+    }
+    const [main, light, shade] = BALL.colors[this.size];
     c.save();
     // Contorno oscuro.
     c.fillStyle = shade;
@@ -481,6 +533,7 @@ class FloatText {
 // --- Jugador ---
 class Player {
   constructor(charIndex) {
+    this.charIndex = charIndex;
     this.char = CHARACTERS[charIndex];
     this.reset();
   }
@@ -598,14 +651,28 @@ class Player {
       c.fill();
     }
 
-    // Sprite pixel-art chibi.
-    drawPixelSprite(c, CHAR_BITMAP, charPalette(ch), this.x, baseY, CHAR_PX);
-
-    // Brazos levantados con el arpón al disparar.
-    if (this.shootPose > 0) {
-      c.fillStyle = ch.body;
-      c.fillRect(this.x + CHAR_PX, baseY + 24, CHAR_PX, -14);
-      c.fillRect(this.x + PLAYER.w - 2*CHAR_PX, baseY + 24, CHAR_PX, -14);
+    // Elegir frame del sprite según el estado.
+    const cs = Sprites.chars[this.charIndex];
+    let img = null;
+    if (cs) {
+      if      (this.dying > 0)     img = cs.hurt;
+      else if (this.shootPose > 0) img = cs.jump;
+      else if (moving)             img = cs.walk[Math.floor(this.walkPhase) % cs.walk.length];
+      else                         img = cs.stand;
+    }
+    if (spriteReady(img)) {
+      // Sprite CC0 escalado a la caja del jugador (mantener pies en el suelo).
+      c.imageSmoothingEnabled = true;
+      const dw = PLAYER.h * (img.naturalWidth / img.naturalHeight);
+      c.drawImage(img, cx - dw/2, baseY, dw, PLAYER.h);
+    } else {
+      // Respaldo: sprite pixel-art propio.
+      drawPixelSprite(c, CHAR_BITMAP, charPalette(ch), this.x, baseY, CHAR_PX);
+      if (this.shootPose > 0) {
+        c.fillStyle = ch.body;
+        c.fillRect(this.x + CHAR_PX, baseY + 24, CHAR_PX, -14);
+        c.fillRect(this.x + PLAYER.w - 2*CHAR_PX, baseY + 24, CHAR_PX, -14);
+      }
     }
     c.restore();
   }
@@ -1184,15 +1251,22 @@ function drawTitle() {
   for (let i=0;i<CHARACTERS.length;i++) {
     const cx = GAME_W/2 + (i-0.5)*150;
     const sel = i === Game.charIndex;
-    const sc = sel ? 3.6 : 2.6;               // sprite más grande si seleccionado
-    const sw = 12*sc, sh = 16*sc;
+    const sh = sel ? 96 : 70;
+    const cs = Sprites.chars[i];
+    const img = cs && cs.stand;
     if (sel) {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      roundRect(ctx, cx - sw/2 - 8, 330, sw + 16, sh + 16, 8); ctx.fill();
-      ctx.fillStyle = '#ffd23b'; ctx.fillRect(cx - sw/2 - 8, 330, sw+16, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      roundRect(ctx, cx - 44, 320, 88, sh + 20, 8); ctx.fill();
+      ctx.fillStyle = '#ffd23b'; ctx.fillRect(cx - 44, 320, 88, 4);
     }
-    drawPixelSprite(ctx, CHAR_BITMAP, charPalette(CHARACTERS[i]), cx - sw/2, 338, sc);
-    arcadeText(CHARACTERS[i].name, cx, 338 + sh + 22, 12, sel ? '#04102e' : '#04102e');
+    if (spriteReady(img)) {
+      ctx.imageSmoothingEnabled = true;
+      const dw = sh * (img.naturalWidth / img.naturalHeight);
+      ctx.drawImage(img, cx - dw/2, 330, dw, sh);
+    } else {
+      drawPixelSprite(ctx, CHAR_BITMAP, charPalette(CHARACTERS[i]), cx - 18, 338, 3);
+    }
+    arcadeText(CHARACTERS[i].name, cx, 330 + sh + 18, 12, '#04102e');
   }
 
   if (Math.floor(Game.blink*1.6)%2)
@@ -1281,6 +1355,7 @@ function loop() {
 function boot() {
   Input.init();
   bindUtilButtons();
+  Sprites.load();      // sprites CC0 (personajes + bola tintable)
   // Precarga los fondos de todos los niveles para que la transición sea fluida.
   LEVELS.forEach(lv => Game.preloadBackground(lv.background, lv.backupGradient));
   requestAnimationFrame(loop);
