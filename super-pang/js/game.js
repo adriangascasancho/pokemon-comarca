@@ -142,6 +142,7 @@ const Sprites = {
   tintedBalls: [],     // respaldo: esfera Kenney tintada por color
   ballSheets: [],      // bolas GPL: una hoja por tamaño (3 colores c/u)
   harpoon: null,       // arpón GPL (6×380, 2 frames)
+  player: null,        // personaje "Pang kid" GPL (272×32 = 8 frames de 34×32)
   chars: [],           // [{stand,jump,hurt,walk:[...]}, ...] por personaje
   load() {
     const mk = (f) => { const i = new Image(); i.src = 'img/sprites/' + f; return i; };
@@ -153,6 +154,7 @@ const Sprites = {
       { img: mk('bolas5.png'), w: 8,  h: 7  },
     ];
     this.harpoon = mk('arpon.png');
+    this.player = mk('player.png');
     // Respaldo de bola (Kenney) tintado.
     this.ballBase = mk('ball_base.png');
     this.ballBase.onload = () => this.buildTintedBalls();
@@ -688,6 +690,22 @@ class Player {
       c.beginPath();
       c.ellipse(cx, this.y + PLAYER.h - 2, PLAYER.w*0.42, 4, 0, 0, Math.PI*2);
       c.fill();
+    }
+
+    // Personaje 1: spritesheet "Pang kid" (GPL, 8 frames de 34×32).
+    const psheet = Sprites.player;
+    if (this.charIndex === 0 && spriteReady(psheet)) {
+      c.imageSmoothingEnabled = false;
+      const fw = 34, fh = 32;
+      let f;
+      if      (this.dying > 0)     f = 6;                                  // daño/muerte
+      else if (this.shootPose > 0) f = 5;                                  // disparo
+      else if (moving)             f = [0,1,2,3][Math.floor(this.walkPhase) % 4]; // correr
+      else                         f = 4;                                  // quieto
+      const dw = PLAYER.h * (fw / fh);
+      c.drawImage(psheet, f*fw, 0, fw, fh, cx - dw/2, baseY, dw, PLAYER.h);
+      c.restore();
+      return;
     }
 
     // Elegir frame del sprite según el estado.
@@ -1298,7 +1316,12 @@ function drawTitle() {
       roundRect(ctx, cx - 44, 320, 88, sh + 20, 8); ctx.fill();
       ctx.fillStyle = '#ffd23b'; ctx.fillRect(cx - 44, 320, 88, 4);
     }
-    if (spriteReady(img)) {
+    if (i === 0 && spriteReady(Sprites.player)) {
+      // Vista previa del "Pang kid" GPL (frame quieto = 4).
+      ctx.imageSmoothingEnabled = false;
+      const dw = sh * (34/32);
+      ctx.drawImage(Sprites.player, 4*34, 0, 34, 32, cx - dw/2, 330, dw, sh);
+    } else if (spriteReady(img)) {
       ctx.imageSmoothingEnabled = true;
       const dw = sh * (img.naturalWidth / img.naturalHeight);
       ctx.drawImage(img, cx - dw/2, 330, dw, sh);
@@ -1311,7 +1334,7 @@ function drawTitle() {
   if (Math.floor(Game.blink*1.6)%2)
     arcadeTitle('PRESS START', GAME_W/2, 470, 26, '#ff3b4e');
   arcadeText('ENTER · ESPACIO · FIRE', GAME_W/2, 510, 12, '#04102e', 'center', false);
-  arcadeText('Homenaje arcade a SUPER PANG · diseño y assets propios', GAME_W/2, 560, 9, '#04102e', 'center', false);
+  arcadeText('Fan-work no comercial · sprites GPL de alvarocual + Kenney CC0', GAME_W/2, 560, 9, '#04102e', 'center', false);
 }
 
 // --- Transición "WORLD x-y · READY" ---

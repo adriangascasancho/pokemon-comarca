@@ -61,12 +61,13 @@ Edita `js/levels.js` y añade un objeto al array `LEVELS` con su `background`,
 
 ## Créditos de assets y licencia
 
-- **Bolas y arpón** (`img/sprites/bolas*.png`, `arpon.png`): de
-  **alvarocual/Super-Pang** (https://github.com/alvarocual/Super-Pang),
-  licencia **GPL-3.0**. Por incluir estos assets, **esta subcarpeta `super-pang/`
-  se distribuye bajo GPL-3.0** (ver `super-pang/LICENSE`).
-- **Personajes** (`img/sprites/c*_*.png`): **Kenney** (kenney.nl), **CC0 1.0**.
+- **Bolas, arpón y personaje 1** (`img/sprites/bolas*.png`, `arpon.png`,
+  `player.png`): de **alvarocual/Super-Pang**
+  (https://github.com/alvarocual/Super-Pang), licencia **GPL-3.0**. Por incluir
+  estos assets, **esta subcarpeta `super-pang/` se distribuye bajo GPL-3.0**
+  (ver `super-pang/LICENSE`).
+- **Personaje 2** (`img/sprites/c2_*.png`): **Kenney** (kenney.nl), **CC0 1.0**.
 - **Fondos** (`img/nivel*.jpeg`): fotos propias del pueblo, procesadas a pixel-art.
 - **Motor, niveles, HUD, marco y audio**: código y diseño propios.
-- *No se usan el personaje, el fondo ni los sonidos del Super Pang original de
-  Capcom. El personaje se dibuja con sprites CC0 propios del género.*
+- *Proyecto sin ánimo de lucro / fan-work no comercial. No se usan el fondo ni
+  los sonidos del Super Pang original de Capcom.*
