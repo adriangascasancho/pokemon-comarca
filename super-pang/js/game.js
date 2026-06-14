@@ -131,19 +131,32 @@ function charPalette(ch) {
 }
 
 /* -------------------------------------------------------------------------
-   SPRITES (assets CC0 de Kenney, dominio público — kenney.nl).
-   Personajes redonditos (P1 azul / P2 rosa) con frames de animación y una
-   esfera glossy gris que tintamos a los colores de cada bola. Si algún PNG
-   no carga, el motor usa el dibujo pixel-art propio como respaldo.
+   SPRITES.
+   - Personajes: assets CC0 de Kenney (kenney.nl, dominio público).
+   - Bolas y arpón: assets de alvarocual/Super-Pang (GPL-3.0) — ver LICENSE.
+   - Esfera glossy gris (Kenney) como respaldo tintable de las bolas.
+   Si algún PNG no carga, el motor usa el dibujo pixel-art propio de respaldo.
 ------------------------------------------------------------------------- */
 const Sprites = {
   ballBase: null,
-  tintedBalls: [],     // un canvas tintado por color de bola
+  tintedBalls: [],     // respaldo: esfera Kenney tintada por color
+  ballSheets: [],      // bolas GPL: una hoja por tamaño (3 colores c/u)
+  harpoon: null,       // arpón GPL (6×380, 2 frames)
   chars: [],           // [{stand,jump,hurt,walk:[...]}, ...] por personaje
   load() {
     const mk = (f) => { const i = new Image(); i.src = 'img/sprites/' + f; return i; };
+    // Bolas GPL (tamaño grande→diminuto). tile = celda de un color.
+    this.ballSheets = [
+      { img: mk('bolas2.png'), w: 48, h: 40 },
+      { img: mk('bolas3.png'), w: 32, h: 26 },
+      { img: mk('bolas4.png'), w: 16, h: 14 },
+      { img: mk('bolas5.png'), w: 8,  h: 7  },
+    ];
+    this.harpoon = mk('arpon.png');
+    // Respaldo de bola (Kenney) tintado.
     this.ballBase = mk('ball_base.png');
     this.ballBase.onload = () => this.buildTintedBalls();
+    // Personajes (Kenney CC0).
     this.chars = [0, 1].map(ci => {
       const p = 'c' + (ci + 1) + '_';
       return {
@@ -329,13 +342,15 @@ const Input = {
 
 // --- Bola rebotante con física parabólica ---
 class Ball {
-  constructor(x, y, size, dir) {
+  constructor(x, y, size, dir, colorIdx) {
     this.x = x; this.y = y;
     this.size = size;
     this.r = BALL.radius[size];
     this.vx = BALL.hspeed[size] * (dir || 1);
     this.vy = -BALL.bounceVy[size] * 0.5;   // empieza subiendo un poco
     this.phase = Math.random() * Math.PI * 2; // para la animación de brillo
+    // Color de la bola (0..2 → rojo/azul/verde de la hoja de sprites).
+    this.colorIdx = colorIdx === undefined ? (Math.random()*3|0) : colorIdx;
     this.dead = false;
   }
   update(dt, game) {
@@ -368,7 +383,14 @@ class Ball {
   }
   draw(c) {
     const x = this.x, y = this.y, r = this.r;
-    // Sprite glossy tintado (CC0). Si no está listo, dibujo glossy de respaldo.
+    // 1º opción: sprite de bola GPL (hoja por tamaño, 3 colores).
+    const sh = Sprites.ballSheets[this.size];
+    if (sh && spriteReady(sh.img)) {
+      c.imageSmoothingEnabled = true;
+      c.drawImage(sh.img, this.colorIdx * sh.w, 0, sh.w, sh.h, x - r, y - r, r*2, r*2);
+      return;
+    }
+    // 2º opción: esfera Kenney tintada.
     const tb = Sprites.tintedBalls[this.size];
     if (tb) {
       c.imageSmoothingEnabled = true;
@@ -429,11 +451,28 @@ class Harpoon {
     return (dx*dx + dy*dy) <= (ball.r + HARPOON.halfW) ** 2;
   }
   draw(c) {
-    // Arpón mecánico: cuerda/cadena vertical clara con eslabones + punta metálica.
-    // Adhesivo = tono gris-azulado; normal = blanco-azul.
+    const x = Math.round(this.x);
+    // Arpón GPL (sprite 6×380, 2 frames de parpadeo) tileado de la punta al pie.
+    const img = Sprites.harpoon;
+    if (spriteReady(img)) {
+      c.imageSmoothingEnabled = false;
+      const fw = 6, fh = 380, frame = Math.floor(Game.blink * 16) % 2;
+      let y = this.tipY;
+      while (y < this.baseY) {
+        const seg = Math.min(fh, this.baseY - y);
+        c.drawImage(img, frame*fw, 0, fw, seg, x - 3, y, 6, seg);
+        y += seg;
+      }
+      // Punta metálica.
+      c.fillStyle = '#e6f0ff';
+      c.beginPath();
+      c.moveTo(x, this.tipY - 7); c.lineTo(x - 5, this.tipY + 3); c.lineTo(x + 5, this.tipY + 3);
+      c.closePath(); c.fill();
+      return;
+    }
+    // Respaldo: cuerda dibujada por código.
     const wire = this.adhesive ? '#aeb6c2' : '#e6f0ff';
     const dark = this.adhesive ? '#5b6472' : '#5b78a8';
-    const x = Math.round(this.x);
     c.save();
     // Cuerda (2 px): núcleo claro + borde oscuro a la izquierda.
     c.fillStyle = dark; c.fillRect(x - 2, this.tipY, 4, this.baseY - this.tipY);
@@ -815,8 +854,8 @@ const Game = {
     // División.
     if (ball.size < 3) {
       const ns = ball.size + 1;
-      const a = new Ball(ball.x, ball.y, ns, -1);
-      const b = new Ball(ball.x, ball.y, ns,  1);
+      const a = new Ball(ball.x, ball.y, ns, -1, ball.colorIdx);
+      const b = new Ball(ball.x, ball.y, ns,  1, ball.colorIdx);
       a.vy = b.vy = -BALL.splitUp;
       this.balls.push(a, b);
     }
